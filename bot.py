@@ -425,23 +425,10 @@ def start_message(message):
     user = message.from_user
     storage.create_user(user.id, user.username, user.full_name)
     
-    # 1. ОТПРАВЛЯЕМ КАРТИНКУ (всегда первой)
-    try:
-        with open('images/2.png', 'rb') as img:
-            bot.send_photo(
-                message.chat.id,
-                photo=img,
-                caption="🌟 Добро пожаловать в трекер задач!"
-            )
-    except Exception as e:
-        # Если картинка не загрузилась — просто игнорируем
-        print(f"⚠️ Не удалось отправить картинку: {e}")
-    
-    # 2. ДАЛЬШЕ ТВОЙ СУЩЕСТВУЮЩИЙ ТЕКСТ
+    # Формируем текст приветствия
     if not is_sprint_active():
         timer_text = get_time_until_start()
-        bot.send_message(
-            message.chat.id,
+        text = (
             f"🌟 Привет, {user.full_name}!\n\n"
             f"Мы на пороге нового рывка 🚀\n"
             f"Спринт стартует: {SPRINT_START.strftime('%d.%m.%Y в %H:%M')}\n"
@@ -453,17 +440,14 @@ def start_message(message):
             f"Пока можно:\n"
             f"📝 Наметить задачи\n"
             f"👥 Ознакомиться с участниками\n\n"
-            f"Готовься — скоро начинаем! 💪",
-            reply_markup=main_menu(),
-            parse_mode="HTML"
+            f"Готовься — скоро начинаем! 💪"
         )
     else:
         active_sprint = storage.get_active_sprint()
         if active_sprint:
             end_date = datetime.fromisoformat(active_sprint['end_date'])
             days_left = max(0, (end_date - datetime.now()).days)
-            bot.send_message(
-                message.chat.id,
+            text = (
                 f"🔥 Ты в игре, {user.full_name}!\n\n"
                 f"Спринт #{active_sprint['number']} уже здесь 🚀\n"
                 f"До финиша: {days_left} дней\n\n"
@@ -472,11 +456,28 @@ def start_message(message):
                 f"• Каждый день ты сможешь отслеживать свой прогресс\n"
                 f"• Каждый день — маленький, но важный шаг\n\n"
                 f"Делай, как чувствуешь.\n"
-                f"Ты справишься! 💫",
+                f"Ты справишься! 💫"
+            )
+    
+    # Отправляем ОДНО сообщение: картинка + текст в caption
+    try:
+        with open('images/2.png', 'rb') as img:
+            bot.send_photo(
+                message.chat.id,
+                photo=img,
+                caption=text,
                 reply_markup=main_menu(),
                 parse_mode="HTML"
             )
-
+    except Exception as e:
+        # Если картинка не загрузилась — отправляем только текст
+        print(f"⚠️ Не удалось отправить картинку: {e}")
+        bot.send_message(
+            message.chat.id,
+            text,
+            reply_markup=main_menu(),
+            parse_mode="HTML"
+        )
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
