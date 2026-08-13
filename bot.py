@@ -503,7 +503,6 @@ def callback_handler(call):
     if user.username not in [u.replace('@', '') for u in ALLOWED_USERS]:
         bot.answer_callback_query(call.id, "🚫 Доступ запрещён.", show_alert=True)
         return
-    # Дальше твой код...
     
     data = call.data
     user_id = call.from_user.id
@@ -529,8 +528,66 @@ def callback_handler(call):
             help_text += "• 🏆 Итоги спринта — результаты"
         bot.edit_message_text(help_text, call.message.chat.id, call.message.message_id, reply_markup=back_button(), parse_mode="HTML")
         return
-    
-    # ... остальные обработчики (wheel, my_tasks, create_task и т.д.)        
+
+    if data == "wheel":
+        if not is_sprint_active():
+            bot.answer_callback_query(call.id, "⏳ Спринт ещё не начался!", show_alert=True)
+            return
+        show_wheel(call)
+        return
+
+    if data == "my_tasks":
+        if not is_sprint_active():
+            bot.answer_callback_query(call.id, "⏳ Спринт ещё не начался!", show_alert=True)
+            return
+        show_my_tasks(call)
+        return
+
+    if data == "team_tasks":
+        show_team_members(call)
+        return
+
+    if data == "create_task":
+        start_create_task(call)
+        return
+
+    if data == "sprint_status":
+        if not is_sprint_active():
+            bot.answer_callback_query(call.id, "⏳ Спринт ещё не начался!", show_alert=True)
+            return
+        show_sprint_status(call)
+        return
+
+    if data == "vote":
+        if not is_sprint_active():
+            bot.answer_callback_query(call.id, "⏳ Спринт ещё не начался!", show_alert=True)
+            return
+        start_voting(call)
+        return
+
+    if data == "sprint_results":
+        if not is_sprint_active():
+            bot.answer_callback_query(call.id, "⏳ Спринт ещё не начался!", show_alert=True)
+            return
+        show_sprint_results(call)
+        return
+
+    if data.startswith("sphere_"):
+        sphere = data.replace("sphere_", "")
+        bot.answer_callback_query(call.id)
+        
+        sprint = storage.get_waiting_sprint() or storage.get_active_sprint()
+        if sprint:
+            task_count = storage.get_user_task_count_by_sphere(user_id, sprint["id"], sphere)
+            if task_count >= TASKS_PER_SPHERE:
+                bot.send_message(
+                    call.message.chat.id,
+                    f"❌ У тебя уже есть {TASKS_PER_SPHERE} задачи по сфере '{sphere}'!\n"
+                    f"Максимум: {TASKS_PER_SPHERE} задачи на сферу.",
+                    reply_markup=spheres_keyboard()
+                )
+                return
+        
         bot.send_message(
             call.message.chat.id,
             f"🌍 Куда направим фокус?\n\n"
@@ -627,7 +684,6 @@ def callback_handler(call):
                 parse_mode="HTML"
             )
         return
-
 
 def process_description_step(message, complexity):
     user_id = message.from_user.id
