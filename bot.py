@@ -274,7 +274,7 @@ waiting_sprint = storage.get_waiting_sprint()
 if not waiting_sprint:
     storage.create_sprint(SPRINT_START)
 
-bot = telebot.TeleBot("ТВОЙ_ТОКЕН_СЮДА")
+bot = telebot.TeleBot("8063432147:AAFnfoOakURx1wiPPvJHaar1dq2eSDrqs4E")
 bot.temp_data = {}  # <- Временное хранилище для данных
 
 # ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
