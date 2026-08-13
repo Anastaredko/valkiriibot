@@ -602,6 +602,55 @@ def callback_handler(call):
         )
         return
 
+    if data.startswith("complexity_"):
+        complexity = data.replace("complexity_", "")
+        bot.answer_callback_query(call.id)
+        
+        # Получаем сохранённые данные из контекста
+        if not hasattr(bot, 'temp_data'):
+            bot.temp_data = {}
+        
+        if user_id in bot.temp_data and 'sphere' in bot.temp_data[user_id]:
+            sphere = bot.temp_data[user_id]['sphere']
+            description = bot.temp_data[user_id]['description']
+            is_draft = bot.temp_data[user_id]['is_draft']
+            sprint_id = bot.temp_data[user_id]['sprint_id']
+            
+            # Создаём задачу
+            task = storage.create_task(user_id, sprint_id, sphere, description, complexity, is_draft)
+            
+            # Удаляем временные данные
+            del bot.temp_data[user_id]
+            
+            task_count_in_sphere = storage.get_user_task_count_by_sphere(user_id, sprint_id, sphere)
+            
+            if is_draft:
+                bot.send_message(
+                    call.message.chat.id,
+                    f"📝 Задача сохранена как черновик!\n\n{format_task_card(task)}\n\n"
+                    f"⏳ Она станет активной, когда спринт начнётся.\n"
+                    f"📌 Осталось задач по этой сфере: {TASKS_PER_SPHERE - task_count_in_sphere - 1}\n\n"
+                    f"Ты на шаг ближе к балансу. Продолжай! 💫",
+                    reply_markup=main_menu(),
+                    parse_mode="HTML"
+                )
+            else:
+                bot.send_message(
+                    call.message.chat.id,
+                    f"✅ Задача создана!\n\n{format_task_card(task)}\n\n"
+                    f"📌 Осталось задач по этой сфере: {TASKS_PER_SPHERE - task_count_in_sphere - 1}\n\n"
+                    f"Ты на шаг ближе к балансу. Продолжай! 💫",
+                    reply_markup=main_menu(),
+                    parse_mode="HTML"
+                )
+        else:
+            bot.send_message(
+                call.message.chat.id,
+                "❌ Что-то пошло не так. Попробуй создать задачу заново.",
+                reply_markup=main_menu()
+            )
+        return
+
     if data.startswith("status_"):
         parts = data.split("_")
         if len(parts) >= 3:
