@@ -507,7 +507,11 @@ def callback_handler(call):
 
     # ===== НАВИГАЦИЯ =====
     if data == "back_to_main":
-        bot.edit_message_text("🎯 Главная\nВыбери, что хочешь сделать:", call.message.chat.id, call.message.message_id, reply_markup=main_menu())
+        bot.send_message(call.message.chat.id, "🎯 Главная\nВыбери, что хочешь сделать:", reply_markup=main_menu())
+        try:
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+        except Exception:
+            pass
         return
 
     if data == "help":
@@ -525,7 +529,11 @@ def callback_handler(call):
             help_text += "• 📊 Статус спринта — общая статистика\n"
             help_text += "• ⭐ Проголосовать — после завершения спринта\n"
             help_text += "• 🏆 Итоги спринта — результаты"
-        bot.edit_message_text(help_text, call.message.chat.id, call.message.message_id, reply_markup=back_button(), parse_mode="HTML")
+        bot.send_message(call.message.chat.id, help_text, reply_markup=back_button(), parse_mode="HTML")
+        try:
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+        except Exception:
+            pass
         return
 
     if data == "team_tasks":
@@ -587,6 +595,10 @@ def callback_handler(call):
                     f"Максимум: {TASKS_PER_SPHERE} задачи на сферу.",
                     reply_markup=spheres_keyboard()
                 )
+                try:
+                    bot.delete_message(call.message.chat.id, call.message.message_id)
+                except Exception:
+                    pass
                 return
         
         bot.send_message(
@@ -605,6 +617,11 @@ def callback_handler(call):
             process_description_step,
             sphere
         )
+        
+        try:
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+        except Exception:
+            pass
         return
 
     if data.startswith("complexity_"):
@@ -666,28 +683,40 @@ def callback_handler(call):
             status = "_".join(parts[2:])
             if storage.update_task_status(task_id, status):
                 task = storage.get_task(task_id)
-                bot.edit_message_text(
-                    f"✅ Статус обновлён!\n\n{format_task_card(task)}\n\nТы приближаешься к цели. Ещё немного! 🔥",
+                bot.send_message(
                     call.message.chat.id,
-                    call.message.message_id,
+                    f"✅ Статус обновлён!\n\n{format_task_card(task)}\n\nТы приближаешься к цели. Ещё немного! 🔥",
                     reply_markup=back_button(),
                     parse_mode="HTML"
                 )
+                try:
+                    bot.delete_message(call.message.chat.id, call.message.message_id)
+                except Exception:
+                    pass
             else:
-                bot.edit_message_text("❌ Не удалось обновить статус", call.message.chat.id, call.message.message_id, reply_markup=back_button())
+                bot.send_message(call.message.chat.id, "❌ Не удалось обновить статус", reply_markup=back_button())
+                try:
+                    bot.delete_message(call.message.chat.id, call.message.message_id)
+                except Exception:
+                    pass
         return
 
     if data.startswith("delete_"):
         task_id = int(data.replace("delete_", ""))
         storage.delete_task(task_id)
-        bot.edit_message_text("🗑️ Задача удалена", call.message.chat.id, call.message.message_id, reply_markup=back_button())
+        bot.send_message(call.message.chat.id, "🗑️ Задача удалена", reply_markup=back_button())
+        try:
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+        except Exception:
+            pass
         return
 
     if data.startswith("task_"):
         task_id = int(data.replace("task_", ""))
         task = storage.get_task(task_id)
         if task:
-            bot.edit_message_text(
+            bot.send_message(
+                call.message.chat.id,
                 f"{format_task_card(task)}\n\n📌 Выбери статус:\n\n"
                 f"⏳ Не начата — пока просто идея\n"
                 f"🔄 Начата — первый шаг сделан\n"
@@ -695,13 +724,19 @@ def callback_handler(call):
                 f"📈 Почти готова — финиш близко\n"
                 f"✅ Выполнена — победа! 🎉\n\n"
                 f"Где ты сейчас? Отметь — и двигайся дальше. 🚀",
-                call.message.chat.id,
-                call.message.message_id,
                 reply_markup=task_statuses_keyboard(task_id),
                 parse_mode="HTML"
             )
+            try:
+                bot.delete_message(call.message.chat.id, call.message.message_id)
+            except Exception:
+                pass
         else:
-            bot.edit_message_text("❌ Задача не найдена", call.message.chat.id, call.message.message_id, reply_markup=back_button())
+            bot.send_message(call.message.chat.id, "❌ Задача не найдена", reply_markup=back_button())
+            try:
+                bot.delete_message(call.message.chat.id, call.message.message_id)
+            except Exception:
+                pass
         return
 
     if data.startswith("vote_"):
@@ -710,24 +745,35 @@ def callback_handler(call):
             sprint_id = int(parts[1])
             candidate_id = int(parts[2])
             if candidate_id == user_id:
-                bot.edit_message_text("❌ Нельзя голосовать за себя!", call.message.chat.id, call.message.message_id, reply_markup=back_button())
+                bot.send_message(call.message.chat.id, "❌ Нельзя голосовать за себя!", reply_markup=back_button())
+                try:
+                    bot.delete_message(call.message.chat.id, call.message.message_id)
+                except Exception:
+                    pass
                 return
             existing_vote = storage.get_user_vote(sprint_id, user_id)
             if existing_vote:
                 candidate = storage.get_user(existing_vote["candidate_id"])
-                bot.edit_message_text(f"❌ Ты уже голосовал(а)!\n\nТвой голос отдан за: {candidate['full_name']}", call.message.chat.id, call.message.message_id, reply_markup=back_button())
+                bot.send_message(call.message.chat.id, f"❌ Ты уже голосовал(а)!\n\nТвой голос отдан за: {candidate['full_name']}", reply_markup=back_button())
+                try:
+                    bot.delete_message(call.message.chat.id, call.message.message_id)
+                except Exception:
+                    pass
                 return
             storage.create_vote(sprint_id, user_id, candidate_id)
             candidate = storage.get_user(candidate_id)
-            bot.edit_message_text(
+            bot.send_message(
+                call.message.chat.id,
                 f"✅ Голос учтён!\n\n"
                 f"⭐ Ты проголосовал(а) за: <b>{candidate['full_name']}</b>\n\n"
                 f"Спасибо за участие! Твой голос — часть общей атмосферы 🌟",
-                call.message.chat.id,
-                call.message.message_id,
                 reply_markup=back_button(),
                 parse_mode="HTML"
             )
+            try:
+                bot.delete_message(call.message.chat.id, call.message.message_id)
+            except Exception:
+                pass
         return
 
 def process_description_step(message, sphere):
@@ -784,7 +830,7 @@ def show_wheel(call):
     user_id = call.from_user.id
     active_sprint = storage.get_active_sprint()
     if not active_sprint:
-        bot.edit_message_text("❌ Нет активного спринта", call.message.chat.id, call.message.message_id, reply_markup=main_menu())
+        bot.send_message(call.message.chat.id, "❌ Нет активного спринта", reply_markup=main_menu())
         return
     
     progress = get_user_sphere_progress(user_id, active_sprint["id"])
@@ -806,29 +852,26 @@ def show_wheel(call):
         f"Двигайся вперёд — каждый процент имеет значение! 🌱"
     )
     
-    bot.edit_message_text(
-        message,
-        call.message.chat.id,
-        call.message.message_id,
-        reply_markup=back_button(),
-        parse_mode="HTML"
-    )
+    bot.send_message(call.message.chat.id, message, reply_markup=back_button(), parse_mode="HTML")
+    try:
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+    except Exception:
+        pass
 
 def show_my_tasks(call):
     user_id = call.from_user.id
     active_sprint = storage.get_active_sprint()
     if not active_sprint:
-        bot.edit_message_text("❌ Нет активного спринта", call.message.chat.id, call.message.message_id, reply_markup=main_menu())
+        bot.send_message(call.message.chat.id, "❌ Нет активного спринта", reply_markup=main_menu())
         return
     
     tasks = storage.get_user_tasks(user_id, active_sprint["id"])
     if not tasks:
-        bot.edit_message_text(
+        bot.send_message(
+            call.message.chat.id,
             f"📭 У тебя пока нет задач на этот спринт.\n\n"
             f"Нужно поставить {TASKS_PER_SPHERE} задачи на каждую из {len(SPHERES)} сфер.\n"
             f"Всего: {MAX_TASKS_PER_USER} задач.",
-            call.message.chat.id,
-            call.message.message_id,
             reply_markup=main_menu()
         )
         return
@@ -862,12 +905,20 @@ def show_my_tasks(call):
         keyboard.add(telebot.types.InlineKeyboardButton(f"✏️ #{t['id']} {t['description'][:20]}...", callback_data=f"task_{t['id']}"))
     keyboard.add(telebot.types.InlineKeyboardButton("🔙 Назад", callback_data="back_to_main"))
     
-    bot.edit_message_text(message, call.message.chat.id, call.message.message_id, reply_markup=keyboard, parse_mode="HTML")
+    bot.send_message(call.message.chat.id, message, reply_markup=keyboard, parse_mode="HTML")
+    try:
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+    except Exception:
+        pass
 
 def show_team_members(call):
     users = storage.get_all_users()
     if not users:
-        bot.edit_message_text("👥 Пока нет зарегистрированных участников.", call.message.chat.id, call.message.message_id, reply_markup=back_button())
+        bot.send_message(call.message.chat.id, "👥 Пока нет зарегистрированных участников.", reply_markup=back_button())
+        try:
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+        except Exception:
+            pass
         return
     
     message = "👥 Командный пульс\n\n"
@@ -892,12 +943,16 @@ def show_team_members(call):
     else:
         message += "\n\nВместе мы сильнее. Поддерживай, вдохновляй, двигайся в ритме команды! 🤝"
     
-    bot.edit_message_text(message, call.message.chat.id, call.message.message_id, reply_markup=back_button(), parse_mode="HTML")
+    bot.send_message(call.message.chat.id, message, reply_markup=back_button(), parse_mode="HTML")
+    try:
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+    except Exception:
+        pass
 
 def show_sprint_status(call):
     active_sprint = storage.get_active_sprint()
     if not active_sprint:
-        bot.edit_message_text("❌ Нет активного спринта", call.message.chat.id, call.message.message_id, reply_markup=main_menu())
+        bot.send_message(call.message.chat.id, "❌ Нет активного спринта", reply_markup=main_menu())
         return
     
     all_tasks = storage.get_sprint_tasks(active_sprint["id"])
@@ -929,7 +984,11 @@ def show_sprint_status(call):
     
     message += "\nКаждый день приближает нас к общей цели! 🌟"
     
-    bot.edit_message_text(message, call.message.chat.id, call.message.message_id, reply_markup=back_button(), parse_mode="HTML")
+    bot.send_message(call.message.chat.id, message, reply_markup=back_button(), parse_mode="HTML")
+    try:
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+    except Exception:
+        pass
 
 def start_create_task(call):
     waiting_sprint = storage.get_waiting_sprint()
@@ -938,17 +997,16 @@ def start_create_task(call):
     sprint = waiting_sprint if waiting_sprint and not is_sprint_active() else active_sprint
     
     if not sprint:
-        bot.edit_message_text("❌ Нет активного спринта", call.message.chat.id, call.message.message_id, reply_markup=main_menu())
+        bot.send_message(call.message.chat.id, "❌ Нет активного спринта", reply_markup=main_menu())
         return
     
     user_id = call.from_user.id
     total_tasks = storage.get_user_task_count(user_id, sprint["id"])
     if total_tasks >= MAX_TASKS_PER_USER:
-        bot.edit_message_text(
+        bot.send_message(
+            call.message.chat.id,
             f"❌ Ты уже создал(а) все {MAX_TASKS_PER_USER} задач!\n"
             f"По {TASKS_PER_SPHERE} задачи на каждую из {len(SPHERES)} сфер.",
-            call.message.chat.id,
-            call.message.message_id,
             reply_markup=main_menu()
         )
         return
@@ -1000,34 +1058,34 @@ def start_voting(call):
     if not voting_sprint:
         current_sprint = storage.get_current_sprint()
         if not current_sprint:
-            bot.edit_message_text("❌ Нет активного спринта", call.message.chat.id, call.message.message_id, reply_markup=main_menu())
+            bot.send_message(call.message.chat.id, "❌ Нет активного спринта", reply_markup=main_menu())
             return
         if current_sprint["status"] == SprintStatus.ACTIVE:
             days_left = (datetime.fromisoformat(current_sprint['end_date']) - datetime.now()).days
-            bot.edit_message_text(f"⏳ Спринт ещё не закончился!\nОсталось {days_left} дней.", call.message.chat.id, call.message.message_id, reply_markup=back_button())
+            bot.send_message(call.message.chat.id, f"⏳ Спринт ещё не закончился!\nОсталось {days_left} дней.", reply_markup=back_button())
             return
         if current_sprint["status"] == SprintStatus.FINISHED:
-            bot.edit_message_text("❌ Голосование уже завершено.\nИтоги в разделе 'Итоги спринта'.", call.message.chat.id, call.message.message_id, reply_markup=back_button())
+            bot.send_message(call.message.chat.id, "❌ Голосование уже завершено.\nИтоги в разделе 'Итоги спринта'.", reply_markup=back_button())
             return
-        bot.edit_message_text("❌ Голосование недоступно", call.message.chat.id, call.message.message_id, reply_markup=back_button())
+        bot.send_message(call.message.chat.id, "❌ Голосование недоступно", reply_markup=back_button())
         return
     
     if voting_sprint.get("voting_end_date"):
         voting_end = datetime.fromisoformat(voting_sprint["voting_end_date"])
         if datetime.now() > voting_end:
-            bot.edit_message_text("⏰ Время голосования истекло.\nРезультаты в разделе 'Итоги спринта'.", call.message.chat.id, call.message.message_id, reply_markup=back_button())
+            bot.send_message(call.message.chat.id, "⏰ Время голосования истекло.\nРезультаты в разделе 'Итоги спринта'.", reply_markup=back_button())
             return
     
     existing_vote = storage.get_user_vote(voting_sprint["id"], user_id)
     if existing_vote:
         candidate = storage.get_user(existing_vote["candidate_id"])
-        bot.edit_message_text(f"✅ Ты уже проголосовал(а)!\n\nТвой голос за: <b>{candidate['full_name']}</b>", call.message.chat.id, call.message.message_id, reply_markup=back_button(), parse_mode="HTML")
+        bot.send_message(call.message.chat.id, f"✅ Ты уже проголосовал(а)!\n\nТвой голос за: <b>{candidate['full_name']}</b>", reply_markup=back_button(), parse_mode="HTML")
         return
     
     users = storage.get_all_users()
     candidates = [{"user_id": u["id"], "full_name": u["full_name"]} for u in users if u["id"] != user_id]
     if not candidates:
-        bot.edit_message_text("❌ Нет других участников", call.message.chat.id, call.message.message_id, reply_markup=back_button())
+        bot.send_message(call.message.chat.id, "❌ Нет других участников", reply_markup=back_button())
         return
     
     message = f"⭐ <b>Звезда спринта</b>\n\n"
@@ -1040,7 +1098,11 @@ def start_voting(call):
     message += f"• Только 1 голос\n\n"
     message += f"Твой выбор — признание чужих усилий. 🤝"
     
-    bot.edit_message_text(message, call.message.chat.id, call.message.message_id, reply_markup=voting_keyboard(candidates, voting_sprint["id"]), parse_mode="HTML")
+    bot.send_message(call.message.chat.id, message, reply_markup=voting_keyboard(candidates, voting_sprint["id"]), parse_mode="HTML")
+    try:
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+    except Exception:
+        pass
 
 def show_sprint_results(call):
     finished_sprint = storage.get_last_finished_sprint()
@@ -1050,22 +1112,22 @@ def show_sprint_results(call):
         active_sprint = storage.get_active_sprint()
         if active_sprint:
             days_left = (datetime.fromisoformat(active_sprint['end_date']) - datetime.now()).days
-            bot.edit_message_text(f"⏳ Спринт ещё не закончился!\nОсталось {days_left} дней.", call.message.chat.id, call.message.message_id, reply_markup=back_button())
+            bot.send_message(call.message.chat.id, f"⏳ Спринт ещё не закончился!\nОсталось {days_left} дней.", reply_markup=back_button())
             return
-        bot.edit_message_text("❌ Нет завершенных спринтов", call.message.chat.id, call.message.message_id, reply_markup=main_menu())
+        bot.send_message(call.message.chat.id, "❌ Нет завершенных спринтов", reply_markup=main_menu())
         return
     
     if voting_sprint:
         voting_end = datetime.fromisoformat(voting_sprint["voting_end_date"])
         if datetime.now() < voting_end:
             hours_left = int((voting_end - datetime.now()).total_seconds() / 3600)
-            bot.edit_message_text(f"⏳ Итоги после голосования.\nОсталось {hours_left} часов.", call.message.chat.id, call.message.message_id, reply_markup=back_button())
+            bot.send_message(call.message.chat.id, f"⏳ Итоги после голосования.\nОсталось {hours_left} часов.", reply_markup=back_button())
             return
     
     sprint_to_show = finished_sprint or voting_sprint
     results = storage.get_sprint_results(sprint_to_show["id"])
     if not results:
-        bot.edit_message_text("❌ Нет данных", call.message.chat.id, call.message.message_id, reply_markup=back_button())
+        bot.send_message(call.message.chat.id, "❌ Нет данных", reply_markup=back_button())
         return
     
     message = f"🏆 <b>Итоги спринта #{sprint_to_show['number']}</b> 🏆\n\n"
@@ -1114,7 +1176,11 @@ def show_sprint_results(call):
     message += "Спринт пройден. Опыт получен. Баланс прокачан.\n"
     message += "До встречи в следующем рывке! 🚀"
     
-    bot.edit_message_text(message, call.message.chat.id, call.message.message_id, reply_markup=back_button(), parse_mode="HTML")
+    bot.send_message(call.message.chat.id, message, reply_markup=back_button(), parse_mode="HTML")
+    try:
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+    except Exception:
+        pass
 
 # ==================== ЗАПУСК ====================
 if __name__ == "__main__":
