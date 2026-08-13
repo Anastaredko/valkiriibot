@@ -1032,10 +1032,27 @@ def show_sprint_results(call):
 
 # ==================== ЗАПУСК ====================
 if __name__ == "__main__":
+    # Запускаем Flask в отдельном потоке (для Render)
+    import threading
+    from flask import Flask
+
+    app = Flask(__name__)
+
+    @app.route('/')
+    def health_check():
+        return "Бот жив!", 200
+
+    def run_flask():
+        app.run(host='0.0.0.0', port=8080)
+
+    # Запускаем Flask в отдельном потоке, чтобы не блокировать бота
+    threading.Thread(target=run_flask, daemon=True).start()
+
     print("🚀 БОТ ЗАПУЩЕН!")
     print(f"📅 Старт спринта: {SPRINT_START.strftime('%d.%m.%Y %H:%M')}")
     print(f"⏳ До старта: {get_time_until_start()}")
     print(f"📌 На спринт: {TASKS_PER_SPHERE} задачи на каждую из {len(SPHERES)} сфер = {MAX_TASKS_PER_USER} задач")
     print("✅ Версия: финальная с обновлёнными текстами")
     print("📍 Жду сообщения...")
+
     bot.infinity_polling()
