@@ -458,12 +458,23 @@ def start_message(message):
                 f"Ты справишься! 💫"
             )
     
-    bot.send_message(
-        message.chat.id,
-        text,
-        reply_markup=main_menu(),
-        parse_mode="HTML"
-    )
+    # Отправляем картинку по ссылке + текст
+    try:
+        bot.send_photo(
+            message.chat.id,
+            photo="https://media.githubusercontent.com/media/Anastaredko/valkiriibot/main/images/2.png",
+            caption=text,
+            reply_markup=main_menu(),
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        print(f"⚠️ Не удалось отправить картинку: {e}")
+        bot.send_message(
+            message.chat.id,
+            text,
+            reply_markup=main_menu(),
+            parse_mode="HTML"
+        )
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
