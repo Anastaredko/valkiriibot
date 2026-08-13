@@ -274,7 +274,8 @@ waiting_sprint = storage.get_waiting_sprint()
 if not waiting_sprint:
     storage.create_sprint(SPRINT_START)
 
-bot = telebot.TeleBot("8063432147:AAFnfoOakURx1wiPPvJHaar1dq2eSDrqs4E")
+bot = telebot.TeleBot("ТВОЙ_ТОКЕН_СЮДА")
+bot.temp_data = {}  # <- Временное хранилище для данных
 
 # ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
 def get_status_emoji(status):
@@ -606,23 +607,25 @@ def callback_handler(call):
         complexity = data.replace("complexity_", "")
         bot.answer_callback_query(call.id)
         
-        # Получаем сохранённые данные из контекста
-        if not hasattr(bot, 'temp_data'):
-            bot.temp_data = {}
-        
         if user_id in bot.temp_data and 'sphere' in bot.temp_data[user_id]:
             sphere = bot.temp_data[user_id]['sphere']
             description = bot.temp_data[user_id]['description']
             is_draft = bot.temp_data[user_id]['is_draft']
             sprint_id = bot.temp_data[user_id]['sprint_id']
             
-            # Создаём задачу
-            task = storage.create_task(user_id, sprint_id, sphere, description, complexity, is_draft)
-            
-            # Удаляем временные данные
-            del bot.temp_data[user_id]
-            
             task_count_in_sphere = storage.get_user_task_count_by_sphere(user_id, sprint_id, sphere)
+            if task_count_in_sphere >= TASKS_PER_SPHERE:
+                bot.send_message(
+                    call.message.chat.id,
+                    f"❌ По сфере '{sphere}' уже создано {TASKS_PER_SPHERE} задач!\n"
+                    f"Максимум: {TASKS_PER_SPHERE} задачи на сферу.",
+                    reply_markup=main_menu()
+                )
+                del bot.temp_data[user_id]
+                return
+            
+            task = storage.create_task(user_id, sprint_id, sphere, description, complexity, is_draft)
+            del bot.temp_data[user_id]
             
             if is_draft:
                 bot.send_message(
@@ -755,6 +758,13 @@ def process_description_step(message, sphere):
         )
         return
     
+    bot.temp_data[user_id] = {
+        'sphere': sphere,
+        'description': description,
+        'is_draft': is_draft,
+        'sprint_id': sprint['id']
+    }
+    
     bot.send_message(
         message.chat.id,
         f"✍️ Отлично! Ты описала задачу:\n\n"
@@ -763,59 +773,6 @@ def process_description_step(message, sphere):
         reply_markup=complexity_keyboard(),
         parse_mode="HTML"
     )
-    
-    bot.register_next_step_handler(
-        message,
-        process_complexity_step,
-        sphere,
-        description,
-        is_draft,
-        sprint["id"],
-        user_id
-    )
-
-def process_complexity_step(message, sphere, description, is_draft, sprint_id, user_id):
-    complexity = message.text.strip()
-    
-    if complexity not in [Complexity.EASY, Complexity.MEDIUM, Complexity.HARD]:
-        bot.send_message(
-            message.chat.id,
-            "❌ Пожалуйста, выбери сложность, нажав на кнопку ниже.",
-            reply_markup=complexity_keyboard()
-        )
-        return
-    
-    task_count_in_sphere = storage.get_user_task_count_by_sphere(user_id, sprint_id, sphere)
-    if task_count_in_sphere >= TASKS_PER_SPHERE:
-        bot.send_message(
-            message.chat.id,
-            f"❌ По сфере '{sphere}' уже создано {TASKS_PER_SPHERE} задач!\n"
-            f"Максимум: {TASKS_PER_SPHERE} задачи на сферу.",
-            reply_markup=main_menu()
-        )
-        return
-    
-    task = storage.create_task(user_id, sprint_id, sphere, description, complexity, is_draft)
-    
-    if is_draft:
-        bot.send_message(
-            message.chat.id,
-            f"📝 Задача сохранена как черновик!\n\n{format_task_card(task)}\n\n"
-            f"⏳ Она станет активной, когда спринт начнётся.\n"
-            f"📌 Осталось задач по этой сфере: {TASKS_PER_SPHERE - task_count_in_sphere - 1}\n\n"
-            f"Ты на шаг ближе к балансу. Продолжай! 💫",
-            reply_markup=main_menu(),
-            parse_mode="HTML"
-        )
-    else:
-        bot.send_message(
-            message.chat.id,
-            f"✅ Задача создана!\n\n{format_task_card(task)}\n\n"
-            f"📌 Осталось задач по этой сфере: {TASKS_PER_SPHERE - task_count_in_sphere - 1}\n\n"
-            f"Ты на шаг ближе к балансу. Продолжай! 💫",
-            reply_markup=main_menu(),
-            parse_mode="HTML"
-        )
 
 # ==================== ФУНКЦИИ ОТОБРАЖЕНИЯ ====================
 def show_wheel(call):
