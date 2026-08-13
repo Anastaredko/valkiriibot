@@ -434,7 +434,6 @@ def start_message(message):
     user = message.from_user
     username = user.username
     
-    # 1. ПРОВЕРКА ДОСТУПА
     if username not in [u.replace('@', '') for u in ALLOWED_USERS]:
         bot.send_message(
             message.chat.id,
@@ -442,10 +441,8 @@ def start_message(message):
         )
         return
     
-    # 2. СОЗДАНИЕ ПОЛЬЗОВАТЕЛЯ (только если доступ разрешён)
     storage.create_user(user.id, user.username, user.full_name)
     
-    # 3. ВСЁ ОСТАЛЬНОЕ (приветствие, правила, меню)
     if not is_sprint_active():
         timer_text = get_time_until_start()
         text = (
@@ -479,7 +476,6 @@ def start_message(message):
                 f"Ты справишься! 💫"
             )
     
-    # 4. ОТПРАВКА КАРТИНКИ + ТЕКСТА
     try:
         bot.send_photo(
             message.chat.id,
@@ -599,27 +595,11 @@ def callback_handler(call):
             parse_mode="HTML"
         )
         
-        # Сохраняем сферу в контекст для следующего шага
         bot.register_next_step_handler_by_chat_id(
             call.message.chat.id,
             process_description_step,
             sphere
         )
-        return
-
-    if data.startswith("complexity_"):
-        complexity = data.replace("complexity_", "")
-        bot.answer_callback_query(call.id)
-        msg = bot.send_message(
-            call.message.chat.id,
-            f"⚡ Отлично!\n\n"
-            f"Выбрана сложность: <b>{complexity}</b>\n\n"
-            f"✍️ Опиши задачу:\n\n"
-            f"Напиши, что именно ты сделаешь в этой сфере.\n"
-            f"Чёткая цель = ясный результат. 🎯",
-            parse_mode="HTML"
-        )
-        bot.register_next_step_handler(msg, process_description_step, complexity)
         return
 
     if data.startswith("status_"):
@@ -693,13 +673,13 @@ def callback_handler(call):
             )
         return
 
-def process_description_step(message, complexity):
+def process_description_step(message, sphere):
     user_id = message.from_user.id
     description = message.text.strip()
     
     if len(description) < 3:
         bot.send_message(message.chat.id, "❌ Описание должно содержать минимум 3 символа. Попробуй снова:")
-        bot.register_next_step_handler(message, process_description_step, complexity)
+        bot.register_next_step_handler(message, process_description_step, sphere)
         return
     
     waiting_sprint = storage.get_waiting_sprint()
@@ -716,7 +696,6 @@ def process_description_step(message, complexity):
         bot.send_message(message.chat.id, "❌ Нет активного спринта!", reply_markup=main_menu())
         return
     
-    sphere = "Здоровье"
     task_count_in_sphere = storage.get_user_task_count_by_sphere(user_id, sprint["id"], sphere)
     if task_count_in_sphere >= TASKS_PER_SPHERE:
         bot.send_message(
@@ -727,7 +706,47 @@ def process_description_step(message, complexity):
         )
         return
     
-    task = storage.create_task(user_id, sprint["id"], sphere, description, complexity, is_draft)
+    bot.send_message(
+        message.chat.id,
+        f"✍️ Отлично! Ты описала задачу:\n\n"
+        f"<b>{description}</b>\n\n"
+        f"Теперь выбери сложность:",
+        reply_markup=complexity_keyboard(),
+        parse_mode="HTML"
+    )
+    
+    bot.register_next_step_handler(
+        message,
+        process_complexity_step,
+        sphere,
+        description,
+        is_draft,
+        sprint["id"],
+        user_id
+    )
+
+def process_complexity_step(message, sphere, description, is_draft, sprint_id, user_id):
+    complexity = message.text.strip()
+    
+    if complexity not in [Complexity.EASY, Complexity.MEDIUM, Complexity.HARD]:
+        bot.send_message(
+            message.chat.id,
+            "❌ Пожалуйста, выбери сложность, нажав на кнопку ниже.",
+            reply_markup=complexity_keyboard()
+        )
+        return
+    
+    task_count_in_sphere = storage.get_user_task_count_by_sphere(user_id, sprint_id, sphere)
+    if task_count_in_sphere >= TASKS_PER_SPHERE:
+        bot.send_message(
+            message.chat.id,
+            f"❌ По сфере '{sphere}' уже создано {TASKS_PER_SPHERE} задач!\n"
+            f"Максимум: {TASKS_PER_SPHERE} задачи на сферу.",
+            reply_markup=main_menu()
+        )
+        return
+    
+    task = storage.create_task(user_id, sprint_id, sphere, description, complexity, is_draft)
     
     if is_draft:
         bot.send_message(
@@ -748,7 +767,6 @@ def process_description_step(message, complexity):
             reply_markup=main_menu(),
             parse_mode="HTML"
         )
-
 
 # ==================== ФУНКЦИИ ОТОБРАЖЕНИЯ ====================
 def show_wheel(call):
@@ -784,7 +802,6 @@ def show_wheel(call):
         reply_markup=back_button(),
         parse_mode="HTML"
     )
-
 
 def show_my_tasks(call):
     user_id = call.from_user.id
@@ -836,7 +853,6 @@ def show_my_tasks(call):
     
     bot.edit_message_text(message, call.message.chat.id, call.message.message_id, reply_markup=keyboard, parse_mode="HTML")
 
-
 def show_team_members(call):
     users = storage.get_all_users()
     if not users:
@@ -866,7 +882,6 @@ def show_team_members(call):
         message += "\n\nВместе мы сильнее. Поддерживай, вдохновляй, двигайся в ритме команды! 🤝"
     
     bot.edit_message_text(message, call.message.chat.id, call.message.message_id, reply_markup=back_button(), parse_mode="HTML")
-
 
 def show_sprint_status(call):
     active_sprint = storage.get_active_sprint()
@@ -904,7 +919,6 @@ def show_sprint_status(call):
     message += "\nКаждый день приближает нас к общей цели! 🌟"
     
     bot.edit_message_text(message, call.message.chat.id, call.message.message_id, reply_markup=back_button(), parse_mode="HTML")
-
 
 def start_create_task(call):
     waiting_sprint = storage.get_waiting_sprint()
@@ -944,7 +958,6 @@ def start_create_task(call):
         "Готов? Выбери, с чего начнём! 🚀"
     )
     
-    # Отправляем картинку с колесом + текст (НОВОЕ СООБЩЕНИЕ)
     try:
         bot.send_photo(
             call.message.chat.id,
@@ -953,14 +966,12 @@ def start_create_task(call):
             reply_markup=spheres_keyboard(),
             parse_mode="HTML"
         )
-        # Удаляем старое сообщение (если оно было)
         try:
             bot.delete_message(call.message.chat.id, call.message.message_id)
         except Exception:
-            pass  # Если не удалось удалить — игнорируем
+            pass
     except Exception as e:
         print(f"⚠️ Не удалось отправить картинку колеса: {e}")
-        # Если картинка не загрузилась — отправляем только текст (НОВОЕ СООБЩЕНИЕ)
         bot.send_message(
             call.message.chat.id,
             intro_text,
@@ -1019,7 +1030,6 @@ def start_voting(call):
     message += f"Твой выбор — признание чужих усилий. 🤝"
     
     bot.edit_message_text(message, call.message.chat.id, call.message.message_id, reply_markup=voting_keyboard(candidates, voting_sprint["id"]), parse_mode="HTML")
-
 
 def show_sprint_results(call):
     finished_sprint = storage.get_last_finished_sprint()
@@ -1116,7 +1126,7 @@ if __name__ == "__main__":
     print(f"📅 Старт спринта: {SPRINT_START.strftime('%d.%m.%Y %H:%M')}")
     print(f"⏳ До старта: {get_time_until_start()}")
     print(f"📌 На спринт: {TASKS_PER_SPHERE} задачи на каждую из {len(SPHERES)} сфер = {MAX_TASKS_PER_USER} задач")
-    print("✅ Версия: финальная с обновлёнными текстами")
+    print("✅ Версия: финальная")
     print("📍 Жду сообщения...")
 
-    bot.infinity_polling()   # ← ЭТО ДОЛЖНО БЫТЬ ТОЛЬКО ОДИН РАЗ!
+    bot.infinity_polling()
