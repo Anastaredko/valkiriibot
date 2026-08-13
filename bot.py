@@ -505,7 +505,7 @@ def callback_handler(call):
     data = call.data
     user_id = call.from_user.id
 
-    # ===== КНОПКИ НАВИГАЦИИ =====
+    # ===== НАВИГАЦИЯ =====
     if data == "back_to_main":
         bot.edit_message_text("🎯 Главная\nВыбери, что хочешь сделать:", call.message.chat.id, call.message.message_id, reply_markup=main_menu())
         return
@@ -532,7 +532,7 @@ def callback_handler(call):
         show_team_members(call)
         return
 
-    # ===== ОСТАЛЬНЫЕ КНОПКИ =====
+    # ===== ОСНОВНЫЕ ФУНКЦИИ =====
     if data == "wheel":
         if not is_sprint_active():
             bot.answer_callback_query(call.id, "⏳ Спринт ещё не начался!", show_alert=True)
@@ -572,6 +572,7 @@ def callback_handler(call):
         show_sprint_results(call)
         return
 
+    # ===== СОЗДАНИЕ ЗАДАЧИ =====
     if data.startswith("sphere_"):
         sphere = data.replace("sphere_", "")
         bot.answer_callback_query(call.id)
@@ -657,6 +658,7 @@ def callback_handler(call):
             )
         return
 
+    # ===== УПРАВЛЕНИЕ ЗАДАЧАМИ =====
     if data.startswith("status_"):
         parts = data.split("_")
         if len(parts) >= 3:
