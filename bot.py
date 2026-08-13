@@ -898,15 +898,45 @@ def start_create_task(call):
         )
         return
     
-    bot.edit_message_text(
-        f"🌍 Куда направим фокус?\n\n"
-        f"📌 Осталось создать: {MAX_TASKS_PER_USER - total_tasks} задач\n"
-        f"📌 По {TASKS_PER_SPHERE} задачи на сферу",
-        call.message.chat.id,
-        call.message.message_id,
-        reply_markup=spheres_keyboard()
+    # Текст с описанием колеса баланса
+    intro_text = (
+        "🌟 <b>Колесо баланса</b>\n\n"
+        "Представь, что твоя жизнь — это колесо. Чтобы оно катилось ровно и быстро, "
+        "все его части должны быть накачаны одинаково.\n\n"
+        "В этом спринте мы прокачаем <b>7 сфер</b>, которые влияют на твоё ощущение счастья и гармонии:\n\n"
+        "🏥 <b>Здоровье</b> — энергия, сила, самочувствие\n"
+        "💼 <b>Карьера</b> — дело, которое приносит доход и реализацию\n"
+        "💰 <b>Финансы</b> — свобода, накопления, разумные траты\n"
+        "💕 <b>Отношения</b> — любовь, партнёрство, близость\n"
+        "👨‍👩‍👧‍👦 <b>Семья</b> — поддержка, связь с родными, общие традиции\n"
+        "🎨 <b>Хобби</b> — радость, творчество, время для себя\n"
+        "📚 <b>Саморазвитие</b> — знания, навыки, личный рост\n\n"
+        "По <b>2 задачи</b> на каждую сферу — и твоё колесо станет ещё круглее! 🌀\n\n"
+        "Готов? Выбери, с чего начнём! 🚀"
     )
-
+    
+    # Отправляем картинку с колесом + текст
+    try:
+        with open('images/3', 'rb') as img:
+            bot.send_photo(
+                call.message.chat.id,
+                photo=img,
+                caption=intro_text,
+                reply_markup=spheres_keyboard(),
+                parse_mode="HTML"
+            )
+        # Удаляем старое сообщение с кнопкой "Выбрать сферу"
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+    except Exception as e:
+        # Если картинка не загрузилась — отправляем только текст
+        print(f"⚠️ Не удалось отправить картинку колеса: {e}")
+        bot.edit_message_text(
+            intro_text,
+            call.message.chat.id,
+            call.message.message_id,
+            reply_markup=spheres_keyboard(),
+            parse_mode="HTML"
+        )
 
 def start_voting(call):
     user_id = call.from_user.id
