@@ -1,4 +1,5 @@
 import telebot
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import json
 import os
 from datetime import datetime, timedelta
@@ -275,7 +276,7 @@ if not waiting_sprint:
     storage.create_sprint(SPRINT_START)
 
 bot = telebot.TeleBot("8063432147:AAFnfoOakURx1wiPPvJHaar1dq2eSDrqs4E")
-bot.temp_data = {}  # <- Временное хранилище для данных
+bot.temp_data = {}
 
 # ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
 def get_status_emoji(status):
@@ -1111,7 +1112,6 @@ def show_sprint_results(call):
     
     bot.edit_message_text(message, call.message.chat.id, call.message.message_id, reply_markup=back_button(), parse_mode="HTML")
 
-
 # ==================== ЗАПУСК ====================
 if __name__ == "__main__":
     import threading
@@ -1132,7 +1132,7 @@ if __name__ == "__main__":
     print(f"📅 Старт спринта: {SPRINT_START.strftime('%d.%m.%Y %H:%M')}")
     print(f"⏳ До старта: {get_time_until_start()}")
     print(f"📌 На спринт: {TASKS_PER_SPHERE} задачи на каждую из {len(SPHERES)} сфер = {MAX_TASKS_PER_USER} задач")
-    print("✅ Версия: финальная")
+    print("✅ Версия: финальная (без аватаров)")
     print("📍 Жду сообщения...")
 
     bot.infinity_polling()
