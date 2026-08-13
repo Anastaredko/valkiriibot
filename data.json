@@ -1,0 +1,35 @@
+{
+  "users": {
+    "605421591": {
+      "id": 605421591,
+      "username": "missanare",
+      "full_name": "Анастасия Редько",
+      "registered_at": "2026-08-13T13:11:16.281615"
+    }
+  },
+  "sprints": [
+    {
+      "id": 1786615876,
+      "number": 1,
+      "start_date": "2026-08-13T13:11:16.285425",
+      "end_date": "2026-08-27T13:11:16.285425",
+      "status": "active",
+      "voting_end_date": null,
+      "winner_id": null
+    },
+    {
+      "id": 1786616478,
+      "number": 2,
+      "start_date": "2026-08-17T10:00:00",
+      "end_date": "2026-08-31T10:00:00",
+      "status": "waiting",
+      "voting_end_date": null,
+      "winner_id": null
+    }
+  ],
+  "tasks": [],
+  "votes": [],
+  "task_counter": 0,
+  "vote_counter": 0,
+  "sprint_counter": 2
+}
