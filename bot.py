@@ -425,6 +425,11 @@ def start_message(message):
     user = message.from_user
     storage.create_user(user.id, user.username, user.full_name)
     
+   @bot.message_handler(commands=['start'])
+def start_message(message):
+    user = message.from_user
+    storage.create_user(user.id, user.username, user.full_name)
+    
     # 1. ОТПРАВЛЯЕМ КАРТИНКУ (всегда первой)
     try:
         with open('images/2.png', 'rb') as img:
@@ -437,7 +442,7 @@ def start_message(message):
         # Если картинка не загрузилась — просто игнорируем
         print(f"⚠️ Не удалось отправить картинку: {e}")
     
-    # 2. ДАЛЬШЕ ТВОЙ СУЩЕСТВУЮЩИЙ ТЕКСТ
+    # 2. ДАЛЬШЕ ТВОЙ СУЩЕСТВУЮЩИЙ ТЕКСТ (ЭТОТ БЛОК ВЫНЕСЕН ИЗ EXCEPT!)
     if not is_sprint_active():
         timer_text = get_time_until_start()
         bot.send_message(
