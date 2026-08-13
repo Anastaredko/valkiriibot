@@ -266,7 +266,7 @@ waiting_sprint = storage.get_waiting_sprint()
 if not waiting_sprint:
     storage.create_sprint(SPRINT_START)
 
-bot = telebot.TeleBot("8063432147:AAEZCNkjYy5mj9BKX4qwPNczWtDpQCPrLEA")
+bot = telebot.TeleBot("ТВОЙ_ТОКЕН_СЮДА")
 
 # ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
 def get_status_emoji(status):
@@ -911,14 +911,24 @@ def start_create_task(call):
         "Готов? Выбери, с чего начнём! 🚀"
     )
     
-    # Отправляем только текст (без картинки) — ЭТО РАБОТАЕТ 100%
-    bot.edit_message_text(
-        intro_text,
-        call.message.chat.id,
-        call.message.message_id,
-        reply_markup=spheres_keyboard(),
-        parse_mode="HTML"
-    )
+    # Отправляем картинку по ссылке + текст
+    try:
+        bot.send_photo(
+            call.message.chat.id,
+            photo="https://media.githubusercontent.com/media/Anastaredko/valkiriibot/main/images/3.png",
+            caption=intro_text,
+            reply_markup=spheres_keyboard(),
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        print(f"⚠️ Не удалось отправить картинку колеса: {e}")
+        bot.edit_message_text(
+            intro_text,
+            call.message.chat.id,
+            call.message.message_id,
+            reply_markup=spheres_keyboard(),
+            parse_mode="HTML"
+        )
 
 
 def start_voting(call):
@@ -1043,6 +1053,7 @@ def show_sprint_results(call):
     message += "До встречи в следующем рывке! 🚀"
     
     bot.edit_message_text(message, call.message.chat.id, call.message.message_id, reply_markup=back_button(), parse_mode="HTML")
+
 
 # ==================== ЗАПУСК ====================
 if __name__ == "__main__":
