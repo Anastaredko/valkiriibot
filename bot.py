@@ -425,7 +425,6 @@ def start_message(message):
     user = message.from_user
     storage.create_user(user.id, user.username, user.full_name)
     
-    # Формируем текст приветствия
     if not is_sprint_active():
         timer_text = get_time_until_start()
         text = (
@@ -459,25 +458,12 @@ def start_message(message):
                 f"Ты справишься! 💫"
             )
     
-    # Отправляем ОДНО сообщение: картинка + текст в caption
-    try:
-        with open('images/2.png', 'rb') as img:
-            bot.send_photo(
-                message.chat.id,
-                photo=img,
-                caption=text,
-                reply_markup=main_menu(),
-                parse_mode="HTML"
-            )
-    except Exception as e:
-        # Если картинка не загрузилась — отправляем только текст
-        print(f"⚠️ Не удалось отправить картинку: {e}")
-        bot.send_message(
-            message.chat.id,
-            text,
-            reply_markup=main_menu(),
-            parse_mode="HTML"
-        )
+    bot.send_message(
+        message.chat.id,
+        text,
+        reply_markup=main_menu(),
+        parse_mode="HTML"
+    )
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
@@ -898,7 +884,6 @@ def start_create_task(call):
         )
         return
     
-    # Текст с описанием колеса баланса
     intro_text = (
         "🌟 <b>Колесо баланса</b>\n\n"
         "Представь, что твоя жизнь — это колесо. Чтобы оно катилось ровно и быстро, "
@@ -915,28 +900,15 @@ def start_create_task(call):
         "Готов? Выбери, с чего начнём! 🚀"
     )
     
-    # Отправляем картинку с колесом + текст
-    try:
-        with open('images/3', 'rb') as img:
-            bot.send_photo(
-                call.message.chat.id,
-                photo=img,
-                caption=intro_text,
-                reply_markup=spheres_keyboard(),
-                parse_mode="HTML"
-            )
-        # Удаляем старое сообщение с кнопкой "Выбрать сферу"
-        bot.delete_message(call.message.chat.id, call.message.message_id)
-    except Exception as e:
-        # Если картинка не загрузилась — отправляем только текст
-        print(f"⚠️ Не удалось отправить картинку колеса: {e}")
-        bot.edit_message_text(
-            intro_text,
-            call.message.chat.id,
-            call.message.message_id,
-            reply_markup=spheres_keyboard(),
-            parse_mode="HTML"
-        )
+    # Отправляем только текст (без картинки) — ЭТО РАБОТАЕТ 100%
+    bot.edit_message_text(
+        intro_text,
+        call.message.chat.id,
+        call.message.message_id,
+        reply_markup=spheres_keyboard(),
+        parse_mode="HTML"
+    )
+
 
 def start_voting(call):
     user_id = call.from_user.id
@@ -1063,7 +1035,6 @@ def show_sprint_results(call):
 
 # ==================== ЗАПУСК ====================
 if __name__ == "__main__":
-    # Запускаем Flask в отдельном потоке (для Render)
     import threading
     from flask import Flask
 
@@ -1076,7 +1047,6 @@ if __name__ == "__main__":
     def run_flask():
         app.run(host='0.0.0.0', port=8080)
 
-    # Запускаем Flask в отдельном потоке, чтобы не блокировать бота
     threading.Thread(target=run_flask, daemon=True).start()
 
     print("🚀 БОТ ЗАПУЩЕН!")
