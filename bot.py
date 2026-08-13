@@ -880,7 +880,7 @@ def start_create_task(call):
         "Готов? Выбери, с чего начнём! 🚀"
     )
     
-    # Отправляем картинку по ссылке + текст
+    # Отправляем картинку с колесом + текст (НОВОЕ СООБЩЕНИЕ)
     try:
         bot.send_photo(
             call.message.chat.id,
@@ -889,15 +889,24 @@ def start_create_task(call):
             reply_markup=spheres_keyboard(),
             parse_mode="HTML"
         )
+        # Удаляем старое сообщение (если оно было)
+        try:
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+        except Exception:
+            pass  # Если не удалось удалить — игнорируем
     except Exception as e:
         print(f"⚠️ Не удалось отправить картинку колеса: {e}")
-        bot.edit_message_text(
-            intro_text,
+        # Если картинка не загрузилась — отправляем только текст (НОВОЕ СООБЩЕНИЕ)
+        bot.send_message(
             call.message.chat.id,
-            call.message.message_id,
+            intro_text,
             reply_markup=spheres_keyboard(),
             parse_mode="HTML"
         )
+        try:
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+        except Exception:
+            pass
 
 def start_voting(call):
     user_id = call.from_user.id
