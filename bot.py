@@ -266,7 +266,7 @@ waiting_sprint = storage.get_waiting_sprint()
 if not waiting_sprint:
     storage.create_sprint(SPRINT_START)
 
-bot = telebot.TeleBot("ТВОЙ_ТОКЕН_СЮДА")
+bot = telebot.TeleBot("8063432147:AAEZCNkjYy5mj9BKX4qwPNczWtDpQCPrLEA")
 
 # ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
 def get_status_emoji(status):
