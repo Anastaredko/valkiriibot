@@ -425,11 +425,6 @@ def start_message(message):
     user = message.from_user
     storage.create_user(user.id, user.username, user.full_name)
     
-   @bot.message_handler(commands=['start'])
-def start_message(message):
-    user = message.from_user
-    storage.create_user(user.id, user.username, user.full_name)
-    
     # 1. ОТПРАВЛЯЕМ КАРТИНКУ (всегда первой)
     try:
         with open('images/2.png', 'rb') as img:
@@ -442,7 +437,7 @@ def start_message(message):
         # Если картинка не загрузилась — просто игнорируем
         print(f"⚠️ Не удалось отправить картинку: {e}")
     
-    # 2. ДАЛЬШЕ ТВОЙ СУЩЕСТВУЮЩИЙ ТЕКСТ (ЭТОТ БЛОК ВЫНЕСЕН ИЗ EXCEPT!)
+    # 2. ДАЛЬШЕ ТВОЙ СУЩЕСТВУЮЩИЙ ТЕКСТ
     if not is_sprint_active():
         timer_text = get_time_until_start()
         bot.send_message(
@@ -481,6 +476,7 @@ def start_message(message):
                 reply_markup=main_menu(),
                 parse_mode="HTML"
             )
+
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
@@ -665,6 +661,7 @@ def callback_handler(call):
             )
         return
 
+
 def process_description_step(message, complexity):
     user_id = message.from_user.id
     description = message.text.strip()
@@ -721,6 +718,7 @@ def process_description_step(message, complexity):
             parse_mode="HTML"
         )
 
+
 # ==================== ФУНКЦИИ ОТОБРАЖЕНИЯ ====================
 def show_wheel(call):
     user_id = call.from_user.id
@@ -755,6 +753,7 @@ def show_wheel(call):
         reply_markup=back_button(),
         parse_mode="HTML"
     )
+
 
 def show_my_tasks(call):
     user_id = call.from_user.id
@@ -806,6 +805,7 @@ def show_my_tasks(call):
     
     bot.edit_message_text(message, call.message.chat.id, call.message.message_id, reply_markup=keyboard, parse_mode="HTML")
 
+
 def show_team_members(call):
     users = storage.get_all_users()
     if not users:
@@ -835,6 +835,7 @@ def show_team_members(call):
         message += "\n\nВместе мы сильнее. Поддерживай, вдохновляй, двигайся в ритме команды! 🤝"
     
     bot.edit_message_text(message, call.message.chat.id, call.message.message_id, reply_markup=back_button(), parse_mode="HTML")
+
 
 def show_sprint_status(call):
     active_sprint = storage.get_active_sprint()
@@ -873,6 +874,7 @@ def show_sprint_status(call):
     
     bot.edit_message_text(message, call.message.chat.id, call.message.message_id, reply_markup=back_button(), parse_mode="HTML")
 
+
 def start_create_task(call):
     waiting_sprint = storage.get_waiting_sprint()
     active_sprint = storage.get_active_sprint()
@@ -903,6 +905,7 @@ def start_create_task(call):
         call.message.message_id,
         reply_markup=spheres_keyboard()
     )
+
 
 def start_voting(call):
     user_id = call.from_user.id
@@ -943,7 +946,7 @@ def start_voting(call):
     message = f"⭐ <b>Звезда спринта</b>\n\n"
     message += f"Спринт #{voting_sprint['number']}\n"
     message += f"⏳ Голосование до {datetime.fromisoformat(voting_sprint['voting_end_date']).strftime('%H:%M %d.%m.%Y')}\n\n"
-    message += f"Выбери того, кто, по твоему мнению, показал лучший результат в этом спринте.\n\n"
+    message += f"Выбери человека, который, по твоему мнению, лучше всех проявил себя в этом спринте.\n\n"
     message += f"⚠️ <b>Важно:</b>\n"
     message += f"• Голос анонимный\n"
     message += f"• Нельзя голосовать за себя\n"
@@ -951,6 +954,7 @@ def start_voting(call):
     message += f"Твой выбор — признание чужих усилий. 🤝"
     
     bot.edit_message_text(message, call.message.chat.id, call.message.message_id, reply_markup=voting_keyboard(candidates, voting_sprint["id"]), parse_mode="HTML")
+
 
 def show_sprint_results(call):
     finished_sprint = storage.get_last_finished_sprint()
