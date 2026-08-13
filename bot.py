@@ -462,7 +462,7 @@ def start_message(message):
     try:
         bot.send_photo(
             message.chat.id,
-            photo="https://media.githubusercontent.com/media/Anastaredko/valkiriibot/main/images/2.png",
+            photo="https://raw.githubusercontent.com/Anastaredko/valkiriibot/main/images/2.png",
             caption=text,
             reply_markup=main_menu(),
             parse_mode="HTML"
@@ -915,7 +915,7 @@ def start_create_task(call):
     try:
         bot.send_photo(
             call.message.chat.id,
-            photo="https://media.githubusercontent.com/media/Anastaredko/valkiriibot/main/images/3.png",
+            photo="https://raw.githubusercontent.com/Anastaredko/valkiriibot/main/images/3.png",
             caption=intro_text,
             reply_markup=spheres_keyboard(),
             parse_mode="HTML"
@@ -929,7 +929,6 @@ def start_create_task(call):
             reply_markup=spheres_keyboard(),
             parse_mode="HTML"
         )
-
 
 def start_voting(call):
     user_id = call.from_user.id
