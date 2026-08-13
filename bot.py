@@ -573,31 +573,31 @@ def callback_handler(call):
         return
 
     if data.startswith("sphere_"):
-        sphere = data.replace("sphere_", "")
-        bot.answer_callback_query(call.id)
-        
-        sprint = storage.get_waiting_sprint() or storage.get_active_sprint()
-        if sprint:
-            task_count = storage.get_user_task_count_by_sphere(user_id, sprint["id"], sphere)
-            if task_count >= TASKS_PER_SPHERE:
-                bot.send_message(
-                    call.message.chat.id,
-                    f"❌ У тебя уже есть {TASKS_PER_SPHERE} задачи по сфере '{sphere}'!\n"
-                    f"Максимум: {TASKS_PER_SPHERE} задачи на сферу.",
-                    reply_markup=spheres_keyboard()
-                )
-                return
-        
-        bot.send_message(
-            call.message.chat.id,
-            f"🌍 Куда направим фокус?\n\n"
-            f"Выбрана сфера: <b>{sphere}</b>\n\n"
-            f"📌 Это задача #{storage.get_user_task_count_by_sphere(user_id, sprint['id'], sphere) + 1} из {TASKS_PER_SPHERE} по этой сфере.\n\n"
-            f"Теперь выбери сложность:",
-            reply_markup=complexity_keyboard(),
-            parse_mode="HTML"
-        )
-        return
+    sphere = data.replace("sphere_", "")
+    bot.answer_callback_query(call.id)
+    
+    sprint = storage.get_waiting_sprint() or storage.get_active_sprint()
+    if sprint:
+        task_count = storage.get_user_task_count_by_sphere(user_id, sprint["id"], sphere)
+        if task_count >= TASKS_PER_SPHERE:
+            bot.send_message(
+                call.message.chat.id,
+                f"❌ У тебя уже есть {TASKS_PER_SPHERE} задачи по сфере '{sphere}'!\n"
+                f"Максимум: {TASKS_PER_SPHERE} задачи на сферу.",
+                reply_markup=spheres_keyboard()
+            )
+            return
+    
+    bot.send_message(
+        call.message.chat.id,
+        f"🌍 Куда направим фокус?\n\n"
+        f"Выбрана сфера: <b>{sphere}</b>\n\n"
+        f"📌 Это задача #{storage.get_user_task_count_by_sphere(user_id, sprint['id'], sphere) + 1} из {TASKS_PER_SPHERE} по этой сфере.\n\n"
+        f"Теперь выбери сложность:",
+        reply_markup=complexity_keyboard(),
+        parse_mode="HTML"
+    )
+    return
 
     if data.startswith("complexity_"):
         complexity = data.replace("complexity_", "")
