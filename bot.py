@@ -425,6 +425,19 @@ def start_message(message):
     user = message.from_user
     storage.create_user(user.id, user.username, user.full_name)
     
+    # 1. ОТПРАВЛЯЕМ КАРТИНКУ (всегда первой)
+    try:
+        with open('images/2.png', 'rb') as img:
+            bot.send_photo(
+                message.chat.id,
+                photo=img,
+                caption="🌟 Добро пожаловать в трекер задач!"
+            )
+    except Exception as e:
+        # Если картинка не загрузилась — просто игнорируем
+        print(f"⚠️ Не удалось отправить картинку: {e}")
+    
+    # 2. ДАЛЬШЕ ТВОЙ СУЩЕСТВУЮЩИЙ ТЕКСТ
     if not is_sprint_active():
         timer_text = get_time_until_start()
         bot.send_message(
@@ -434,8 +447,8 @@ def start_message(message):
             f"Спринт стартует: {SPRINT_START.strftime('%d.%m.%Y в %H:%M')}\n"
             f"Осталось: {timer_text}\n\n"
             f"✨ Правила игры:\n"
-            f"• Поставь по {TASKS_PER_SPHERE} задачи на каждую из {len(SPHERES)} сфер жизни, чтобы идти ровно по колесу баланса\n"
-            f"• Всего {MAX_TASKS_PER_USER} задач на спринт. Будет весело!\n"
+            f"• Поставь по {TASKS_PER_SPHERE} задачи на каждую из {len(SPHERES)} сфер жизни\n"
+            f"• Всего {MAX_TASKS_PER_USER} задач на спринт\n"
             f"• Каждая задача — твой шаг к балансу и росту\n\n"
             f"Пока можно:\n"
             f"📝 Наметить задачи\n"
