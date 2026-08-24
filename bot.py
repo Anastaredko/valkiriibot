@@ -3,6 +3,8 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import json
 import os
 from datetime import datetime, timedelta
+import threading
+import time
 
 # ==================== ДОСТУП ====================
 ALLOWED_USERS = [
@@ -353,6 +355,69 @@ def get_user_sphere_summary(user_id, sprint_id):
         lines.append(f"{sphere['emoji']} {sphere['name']}: {completed}/{total} задач, {progress}%")
     return "\n".join(lines)
 
+# ==================== АКТИВАЦИЯ ЧЕРНОВИКОВ ====================
+def activate_drafts():
+    """Активирует все черновики в активном спринте"""
+    active_sprint = storage.get_active_sprint()
+    if not active_sprint:
+        return
+    
+    all_tasks = storage.get_sprint_tasks(active_sprint["id"])
+    updated = 0
+    for task in all_tasks:
+        if task.get("is_draft", False):
+            task["is_draft"] = False
+            updated += 1
+            storage._save()
+    
+    if updated > 0:
+        print(f"✅ Активировано {updated} черновиков")
+        # Уведомляем пользователей об активации
+        users = storage.get_all_users()
+        for user in users:
+            try:
+                bot.send_message(
+                    user["id"],
+                    f"📝 <b>Твои черновики стали активными задачами!</b>\n\n"
+                    f"Спринт начался, теперь можно работать над ними 🚀",
+                    parse_mode="HTML"
+                )
+            except Exception as e:
+                print(f"⚠️ Не удалось отправить уведомление {user['id']}: {e}")
+
+# ==================== ПЛАНИРОВЩИК УВЕДОМЛЕНИЙ ====================
+def send_sprint_reminder():
+    """Отправляет уведомление за 1 час до старта и активирует черновики"""
+    now = datetime.now()
+    diff = SPRINT_START - now
+    seconds_until_start = diff.total_seconds()
+    
+    if seconds_until_start <= 0:
+        activate_drafts()
+        return
+    
+    if seconds_until_start > 3600:
+        wait_seconds = seconds_until_start - 3600
+        threading.Timer(wait_seconds, send_sprint_reminder).start()
+        return
+    
+    # Отправляем уведомление за 1 час
+    users = storage.get_all_users()
+    for user in users:
+        try:
+            bot.send_message(
+                user["id"],
+                f"⏰ <b>Спринт начнётся через 1 час!</b>\n\n"
+                f"До старта осталось 60 минут.\n"
+                f"Успей завершить подготовку задач! 🚀",
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            print(f"⚠️ Не удалось отправить уведомление пользователю {user['id']}: {e}")
+    
+    # Запускаем таймер на момент старта, чтобы активировать черновики
+    threading.Timer(seconds_until_start, activate_drafts).start()
+
 # ==================== КЛАВИАТУРЫ ====================
 def main_menu():
     keyboard = telebot.types.InlineKeyboardMarkup(row_width=1)
@@ -375,6 +440,7 @@ def main_menu():
     else:
         keyboard.add(
             telebot.types.InlineKeyboardButton("📝 Поставить задачи", callback_data="create_task"),
+            telebot.types.InlineKeyboardButton("📂 Мои черновики", callback_data="show_drafts_menu"),
             telebot.types.InlineKeyboardButton("👥 Участники спринта", callback_data="team_tasks")
         )
     
@@ -433,6 +499,10 @@ def voting_keyboard(candidates, sprint_id):
 
 @bot.message_handler(commands=['start'])
 def start_message(message):
+    # Активируем черновики, если спринт уже начался
+    if is_sprint_active():
+        activate_drafts()
+    
     user = message.from_user
     username = user.username
     
@@ -458,6 +528,7 @@ def start_message(message):
             f"• Каждая задача — твой шаг к балансу и росту\n\n"
             f"Пока можно:\n"
             f"📝 Наметить задачи\n"
+            f"📂 Посмотреть черновики\n"
             f"👥 Ознакомиться с участниками\n\n"
             f"Готовься — скоро начинаем! 💪"
         )
@@ -495,6 +566,48 @@ def start_message(message):
             parse_mode="HTML"
         )
 
+@bot.message_handler(commands=['force_start'])
+def force_start(message):
+    user = message.from_user
+    # Проверяем, что пользователь — админ (только @missanare)
+    if user.username != "missanare":
+        bot.send_message(message.chat.id, "🚫 У тебя нет прав для этой команды.")
+        return
+    
+    # Проверяем, есть ли ожидающий спринт
+    waiting_sprint = storage.get_waiting_sprint()
+    if not waiting_sprint:
+        bot.send_message(message.chat.id, "❌ Нет ожидающего спринта.")
+        return
+    
+    # Обновляем дату старта на текущее время
+    now = datetime.now()
+    waiting_sprint["start_date"] = now.isoformat()
+    waiting_sprint["end_date"] = (now + timedelta(days=14)).isoformat()
+    storage._save()
+    
+    # Активируем спринт (меняем статус)
+    storage.update_sprint_status(waiting_sprint["id"], SprintStatus.ACTIVE)
+    
+    # Активируем черновики
+    activate_drafts()
+    
+    # Отправляем уведомление всем участникам
+    users = storage.get_all_users()
+    for u in users:
+        try:
+            bot.send_message(
+                u["id"],
+                f"🚀 <b>Спринт принудительно запущен!</b>\n\n"
+                f"Дата старта: {now.strftime('%d.%m.%Y %H:%M')}\n"
+                f"Все черновики активированы. Удачи! 💪",
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            print(f"⚠️ Не удалось отправить уведомление {u['id']}: {e}")
+    
+    bot.send_message(message.chat.id, "✅ Спринт принудительно запущен!")
+
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
     user = call.from_user
@@ -519,6 +632,7 @@ def callback_handler(call):
         if not is_sprint_active():
             help_text += "⏳ <b>Режим ожидания:</b>\n"
             help_text += "• 📝 Поставить задачи — выбрать задачи на спринт\n"
+            help_text += "• 📂 Мои черновики — просмотр и редактирование черновиков\n"
             help_text += "• 👥 Участники спринта — список участников\n\n"
         else:
             help_text += "🚀 <b>Активный режим:</b>\n"
@@ -538,6 +652,106 @@ def callback_handler(call):
 
     if data == "team_tasks":
         show_team_members(call)
+        return
+
+    if data == "show_drafts_menu":
+        sprint = storage.get_waiting_sprint()
+        if not sprint:
+            bot.send_message(call.message.chat.id, "❌ Нет активного спринта", reply_markup=main_menu())
+            return
+        user_id = call.from_user.id
+        draft_tasks = [t for t in storage.get_user_tasks(user_id, sprint["id"]) if t.get("is_draft", False)]
+        if draft_tasks:
+            show_drafts(call, draft_tasks, sprint)
+        else:
+            bot.send_message(call.message.chat.id, "📭 У тебя пока нет черновиков.", reply_markup=back_button())
+        return
+
+    if data == "add_new_task":
+        sprint = storage.get_waiting_sprint() or storage.get_active_sprint()
+        if sprint:
+            start_new_task(call, sprint)
+        return
+
+    if data == "back_to_drafts":
+        sprint = storage.get_waiting_sprint() or storage.get_active_sprint()
+        if sprint:
+            draft_tasks = [t for t in storage.get_user_tasks(user_id, sprint["id"]) if t.get("is_draft", False)]
+            show_drafts(call, draft_tasks, sprint)
+        return
+
+    if data.startswith("edit_draft_"):
+        task_id = int(data.replace("edit_draft_", ""))
+        task = storage.get_task(task_id)
+        if task:
+            bot.send_message(
+                call.message.chat.id,
+                f"✏️ <b>Редактирование черновика</b>\n\n"
+                f"{format_task_card(task)}\n\n"
+                f"Что хочешь изменить?",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("📝 Изменить описание", callback_data=f"edit_desc_{task_id}")],
+                    [InlineKeyboardButton("📊 Изменить сложность", callback_data=f"edit_complexity_{task_id}")],
+                    [InlineKeyboardButton("🗑️ Удалить черновик", callback_data=f"delete_{task_id}")],
+                    [InlineKeyboardButton("🔙 Назад", callback_data="back_to_drafts")]
+                ])
+            )
+            try:
+                bot.delete_message(call.message.chat.id, call.message.message_id)
+            except Exception:
+                pass
+        else:
+            bot.send_message(call.message.chat.id, "❌ Задача не найдена", reply_markup=back_button())
+        return
+
+    if data.startswith("edit_desc_"):
+        task_id = int(data.replace("edit_desc_", ""))
+        task = storage.get_task(task_id)
+        if task:
+            bot.send_message(
+                call.message.chat.id,
+                f"✍️ Введи новое описание для задачи:\n\n"
+                f"<b>Текущее описание:</b> {task['description']}",
+                parse_mode="HTML"
+            )
+            bot.register_next_step_handler(
+                call.message,
+                update_task_description,
+                task_id
+            )
+        return
+
+    if data.startswith("edit_complexity_"):
+        task_id = int(data.replace("edit_complexity_", ""))
+        task = storage.get_task(task_id)
+        if task:
+            bot.send_message(
+                call.message.chat.id,
+                f"📊 Выбери новую сложность для задачи:\n\n"
+                f"<b>Текущая сложность:</b> {task['complexity']}",
+                reply_markup=complexity_keyboard_for_edit(task_id),
+                parse_mode="HTML"
+            )
+        return
+
+    if data.startswith("set_complexity_"):
+        parts = data.split("_")
+        task_id = int(parts[2])
+        complexity = "_".join(parts[3:])
+        
+        task = storage.get_task(task_id)
+        if task:
+            task["complexity"] = complexity
+            task["updated_at"] = datetime.now().isoformat()
+            storage._save()
+            bot.send_message(
+                call.message.chat.id,
+                f"✅ Сложность обновлена!\n\n{format_task_card(task)}",
+                reply_markup=back_button(),
+                parse_mode="HTML"
+            )
+        else:
+            bot.send_message(call.message.chat.id, "❌ Задача не найдена", reply_markup=back_button())
         return
 
     # ===== ОСНОВНЫЕ ФУНКЦИИ =====
@@ -612,8 +826,8 @@ def callback_handler(call):
             parse_mode="HTML"
         )
         
-        bot.register_next_step_handler_by_chat_id(
-            call.message.chat.id,
+        bot.register_next_step_handler(
+            call.message,
             process_description_step,
             sphere
         )
@@ -921,7 +1135,7 @@ def show_team_members(call):
             pass
         return
     
-    message = "👥 Командный пульс\n\n"
+    message = "👥 <b>Участники спринта</b>\n\n"
     active_sprint = storage.get_active_sprint()
     
     for user in users:
@@ -1001,7 +1215,57 @@ def start_create_task(call):
         return
     
     user_id = call.from_user.id
+    
+    # Проверяем, есть ли черновики
+    draft_tasks = [t for t in storage.get_user_tasks(user_id, sprint["id"]) if t.get("is_draft", False)]
+    
+    if draft_tasks:
+        show_drafts(call, draft_tasks, sprint)
+        return
+    
+    # Если черновиков нет — создаём новую задачу
+    start_new_task(call, sprint)
+
+def show_drafts(call, draft_tasks, sprint):
+    """Показывает черновики пользователя"""
+    message = "📝 <b>Твои черновики</b>\n\n"
+    message += f"Спринт #{sprint['number']} (до старта)\n"
+    message += f"📌 Всего задач: {len(draft_tasks)} из {MAX_TASKS_PER_USER}\n\n"
+    
+    for i, task in enumerate(draft_tasks, 1):
+        message += f"{i}. {format_task_card(task)}\n\n"
+    
+    message += "Что хочешь сделать?"
+    
+    keyboard = telebot.types.InlineKeyboardMarkup(row_width=2)
+    for task in draft_tasks:
+        keyboard.add(
+            telebot.types.InlineKeyboardButton(
+                f"✏️ #{task['id']} {task['description'][:15]}...",
+                callback_data=f"edit_draft_{task['id']}"
+            )
+        )
+    keyboard.add(
+        telebot.types.InlineKeyboardButton("➕ Добавить задачу", callback_data="add_new_task"),
+        telebot.types.InlineKeyboardButton("🔙 Назад", callback_data="back_to_main")
+    )
+    
+    bot.send_message(
+        call.message.chat.id,
+        message,
+        reply_markup=keyboard,
+        parse_mode="HTML"
+    )
+    try:
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+    except Exception:
+        pass
+
+def start_new_task(call, sprint):
+    """Начинает создание новой задачи"""
+    user_id = call.from_user.id
     total_tasks = storage.get_user_task_count(user_id, sprint["id"])
+    
     if total_tasks >= MAX_TASKS_PER_USER:
         bot.send_message(
             call.message.chat.id,
@@ -1182,6 +1446,42 @@ def show_sprint_results(call):
     except Exception:
         pass
 
+def update_task_description(message, task_id):
+    """Обновляет описание черновика"""
+    new_description = message.text.strip()
+    
+    if len(new_description) < 3:
+        bot.send_message(message.chat.id, "❌ Описание должно содержать минимум 3 символа. Попробуй снова:")
+        bot.register_next_step_handler(message, update_task_description, task_id)
+        return
+    
+    task = storage.get_task(task_id)
+    if task:
+        task["description"] = new_description
+        task["updated_at"] = datetime.now().isoformat()
+        storage._save()
+        bot.send_message(
+            message.chat.id,
+            f"✅ Описание обновлено!\n\n{format_task_card(task)}",
+            reply_markup=back_button(),
+            parse_mode="HTML"
+        )
+    else:
+        bot.send_message(message.chat.id, "❌ Задача не найдена", reply_markup=back_button())
+
+def complexity_keyboard_for_edit(task_id):
+    """Клавиатура для выбора сложности при редактировании"""
+    keyboard = telebot.types.InlineKeyboardMarkup(row_width=2)
+    keyboard.add(
+        telebot.types.InlineKeyboardButton("🟢 Лёгкая (1 балл)", callback_data=f"set_complexity_{task_id}_легкая"),
+        telebot.types.InlineKeyboardButton("🟡 Средняя (2 балла)", callback_data=f"set_complexity_{task_id}_средняя")
+    )
+    keyboard.add(
+        telebot.types.InlineKeyboardButton("🔴 Сложная (3 балла)", callback_data=f"set_complexity_{task_id}_сложная")
+    )
+    keyboard.add(telebot.types.InlineKeyboardButton("🔙 Назад", callback_data=f"edit_draft_{task_id}"))
+    return keyboard
+
 # ==================== ЗАПУСК ====================
 if __name__ == "__main__":
     import threading
@@ -1198,11 +1498,18 @@ if __name__ == "__main__":
 
     threading.Thread(target=run_flask, daemon=True).start()
 
+    # Активируем черновики, если спринт уже идёт
+    if is_sprint_active():
+        activate_drafts()
+
+    # Запускаем планировщик уведомлений
+    send_sprint_reminder()
+
     print("🚀 БОТ ЗАПУЩЕН!")
     print(f"📅 Старт спринта: {SPRINT_START.strftime('%d.%m.%Y %H:%M')}")
     print(f"⏳ До старта: {get_time_until_start()}")
     print(f"📌 На спринт: {TASKS_PER_SPHERE} задачи на каждую из {len(SPHERES)} сфер = {MAX_TASKS_PER_USER} задач")
-    print("✅ Версия: финальная (без аватаров)")
+    print("✅ Версия: финальная с черновиками и уведомлениями")
     print("📍 Жду сообщения...")
 
     bot.infinity_polling()
