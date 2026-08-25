@@ -372,7 +372,6 @@ def activate_drafts():
     
     if updated > 0:
         print(f"✅ Активировано {updated} черновиков")
-        # Уведомляем пользователей об активации
         users = storage.get_all_users()
         for user in users:
             try:
@@ -417,6 +416,23 @@ def send_sprint_reminder():
     
     # Запускаем таймер на момент старта, чтобы активировать черновики
     threading.Timer(seconds_until_start, activate_drafts).start()
+
+# ==================== УВЕДОМЛЕНИЕ О СДВИГЕ СПРИНТА ====================
+def notify_users_about_shift(new_start):
+    """Отправляет уведомление всем участникам о сдвиге спринта"""
+    users = storage.get_all_users()
+    for u in users:
+        try:
+            bot.send_message(
+                u["id"],
+                f"🔄 <b>Время старта спринта изменено администратором.</b>\n\n"
+                f"Новый старт: {new_start.strftime('%d.%m.%Y в %H:%M')}\n"
+                f"Задачи сохранены без изменений.\n"
+                f"Готовься! 🚀",
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            print(f"⚠️ Не удалось отправить уведомление {u['id']}: {e}")
 
 # ==================== КЛАВИАТУРЫ ====================
 def main_menu():
@@ -499,7 +515,6 @@ def voting_keyboard(candidates, sprint_id):
 
 @bot.message_handler(commands=['start'])
 def start_message(message):
-    # Активируем черновики, если спринт уже начался
     if is_sprint_active():
         activate_drafts()
     
@@ -569,30 +584,23 @@ def start_message(message):
 @bot.message_handler(commands=['force_start'])
 def force_start(message):
     user = message.from_user
-    # Проверяем, что пользователь — админ (только @missanare)
     if user.username != "missanare":
         bot.send_message(message.chat.id, "🚫 У тебя нет прав для этой команды.")
         return
     
-    # Проверяем, есть ли ожидающий спринт
     waiting_sprint = storage.get_waiting_sprint()
     if not waiting_sprint:
         bot.send_message(message.chat.id, "❌ Нет ожидающего спринта.")
         return
     
-    # Обновляем дату старта на текущее время
     now = datetime.now()
     waiting_sprint["start_date"] = now.isoformat()
     waiting_sprint["end_date"] = (now + timedelta(days=14)).isoformat()
     storage._save()
     
-    # Активируем спринт (меняем статус)
     storage.update_sprint_status(waiting_sprint["id"], SprintStatus.ACTIVE)
-    
-    # Активируем черновики
     activate_drafts()
     
-    # Отправляем уведомление всем участникам
     users = storage.get_all_users()
     for u in users:
         try:
@@ -607,6 +615,33 @@ def force_start(message):
             print(f"⚠️ Не удалось отправить уведомление {u['id']}: {e}")
     
     bot.send_message(message.chat.id, "✅ Спринт принудительно запущен!")
+
+@bot.message_handler(commands=['shift_sprint'])
+def shift_sprint_menu(message):
+    user = message.from_user
+    if user.username != "missanare":
+        bot.send_message(message.chat.id, "🚫 У тебя нет прав для этой команды.")
+        return
+    
+    sprint = storage.get_current_sprint()
+    if not sprint:
+        bot.send_message(message.chat.id, "❌ Нет активного спринта для сдвига.")
+        return
+    
+    keyboard = InlineKeyboardMarkup(row_width=1)
+    keyboard.add(
+        InlineKeyboardButton("⏩ Сдвинуть на 14 дней", callback_data="shift_auto"),
+        InlineKeyboardButton("📅 Ввести дату вручную", callback_data="shift_manual"),
+        InlineKeyboardButton("❌ Отмена", callback_data="shift_cancel")
+    )
+    bot.send_message(
+        message.chat.id,
+        f"🔄 <b>Сдвиг времени спринта</b>\n\n"
+        f"Текущий старт: {datetime.fromisoformat(sprint['start_date']).strftime('%d.%m.%Y %H:%M')}\n"
+        f"Выбери вариант:",
+        reply_markup=keyboard,
+        parse_mode="HTML"
+    )
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
@@ -659,7 +694,6 @@ def callback_handler(call):
         if not sprint:
             bot.send_message(call.message.chat.id, "❌ Нет активного спринта", reply_markup=main_menu())
             return
-        user_id = call.from_user.id
         draft_tasks = [t for t in storage.get_user_tasks(user_id, sprint["id"]) if t.get("is_draft", False)]
         if draft_tasks:
             show_drafts(call, draft_tasks, sprint)
@@ -680,6 +714,7 @@ def callback_handler(call):
             show_drafts(call, draft_tasks, sprint)
         return
 
+    # ===== РЕДАКТИРОВАНИЕ ЧЕРНОВИКОВ =====
     if data.startswith("edit_draft_"):
         task_id = int(data.replace("edit_draft_", ""))
         task = storage.get_task(task_id)
@@ -752,6 +787,67 @@ def callback_handler(call):
             )
         else:
             bot.send_message(call.message.chat.id, "❌ Задача не найдена", reply_markup=back_button())
+        return
+
+    # ===== СДВИГ СПРИНТА =====
+    if data == "shift_cancel":
+        bot.send_message(call.message.chat.id, "❌ Отменено.", reply_markup=main_menu())
+        try:
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+        except Exception:
+            pass
+        return
+
+    if data == "shift_auto":
+        sprint = storage.get_current_sprint()
+        if not sprint:
+            bot.send_message(call.message.chat.id, "❌ Спринт не найден.", reply_markup=main_menu())
+            return
+        
+        new_start = datetime.now() + timedelta(days=14)
+        new_start = new_start.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+        new_end = new_start + timedelta(days=14)
+        
+        sprint["start_date"] = new_start.isoformat()
+        sprint["end_date"] = new_end.isoformat()
+        if sprint["status"] in [SprintStatus.ACTIVE, SprintStatus.VOTING]:
+            sprint["status"] = SprintStatus.WAITING
+            sprint["voting_end_date"] = None
+            sprint["winner_id"] = None
+        storage._save()
+        
+        bot.send_message(
+            call.message.chat.id,
+            f"✅ Время спринта сдвинуто на 14 дней!\n"
+            f"Новый старт: {new_start.strftime('%d.%m.%Y в %H:%M')}\n"
+            f"Все задачи сохранены.",
+            reply_markup=main_menu()
+        )
+        try:
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+        except Exception:
+            pass
+        
+        notify_users_about_shift(new_start)
+        return
+
+    if data == "shift_manual":
+        bot.send_message(
+            call.message.chat.id,
+            "📅 Введи новую дату старта в формате:\n"
+            "<b>ДД.ММ.ГГГГ ЧЧ:ММ</b>\n\n"
+            "Пример: <code>25.09.2026 10:00</code>\n\n"
+            "Или нажми «Отмена», чтобы выйти.",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("❌ Отмена", callback_data="shift_cancel")]
+            ])
+        )
+        bot.register_next_step_handler(call.message, process_manual_date)
+        try:
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+        except Exception:
+            pass
         return
 
     # ===== ОСНОВНЫЕ ФУНКЦИИ =====
@@ -990,6 +1086,59 @@ def callback_handler(call):
                 pass
         return
 
+# ==================== ДОПОЛНИТЕЛЬНЫЕ ФУНКЦИИ ====================
+def process_manual_date(message):
+    user = message.from_user
+    if user.username != "missanare":
+        bot.send_message(message.chat.id, "🚫 У тебя нет прав.", reply_markup=main_menu())
+        return
+    
+    try:
+        new_start = datetime.strptime(message.text.strip(), "%d.%m.%Y %H:%M")
+    except ValueError:
+        bot.send_message(
+            message.chat.id,
+            "❌ Неверный формат. Попробуй снова: ДД.ММ.ГГГГ ЧЧ:ММ\n"
+            "Пример: <code>25.09.2026 10:00</code>",
+            parse_mode="HTML"
+        )
+        bot.register_next_step_handler(message, process_manual_date)
+        return
+    
+    if new_start <= datetime.now() + timedelta(hours=1):
+        bot.send_message(
+            message.chat.id,
+            "⚠️ Дата должна быть как минимум на 1 час позже текущего времени. Попробуй снова.",
+            reply_markup=main_menu()
+        )
+        return
+    
+    sprint = storage.get_current_sprint()
+    if not sprint:
+        bot.send_message(message.chat.id, "❌ Спринт не найден.", reply_markup=main_menu())
+        return
+    
+    print(f"🔄 Админ {user.username} сдвинул спринт на {new_start}")
+    
+    new_end = new_start + timedelta(days=14)
+    sprint["start_date"] = new_start.isoformat()
+    sprint["end_date"] = new_end.isoformat()
+    if sprint["status"] in [SprintStatus.ACTIVE, SprintStatus.VOTING]:
+        sprint["status"] = SprintStatus.WAITING
+        sprint["voting_end_date"] = None
+        sprint["winner_id"] = None
+    storage._save()
+    
+    bot.send_message(
+        message.chat.id,
+        f"✅ Время спринта обновлено!\n"
+        f"Новый старт: {new_start.strftime('%d.%m.%Y в %H:%M')}\n"
+        f"Все задачи сохранены.",
+        reply_markup=main_menu()
+    )
+    
+    notify_users_about_shift(new_start)
+
 def process_description_step(message, sphere):
     user_id = message.from_user.id
     description = message.text.strip()
@@ -1215,19 +1364,15 @@ def start_create_task(call):
         return
     
     user_id = call.from_user.id
-    
-    # Проверяем, есть ли черновики
     draft_tasks = [t for t in storage.get_user_tasks(user_id, sprint["id"]) if t.get("is_draft", False)]
     
     if draft_tasks:
         show_drafts(call, draft_tasks, sprint)
         return
     
-    # Если черновиков нет — создаём новую задачу
     start_new_task(call, sprint)
 
 def show_drafts(call, draft_tasks, sprint):
-    """Показывает черновики пользователя"""
     message = "📝 <b>Твои черновики</b>\n\n"
     message += f"Спринт #{sprint['number']} (до старта)\n"
     message += f"📌 Всего задач: {len(draft_tasks)} из {MAX_TASKS_PER_USER}\n\n"
@@ -1262,7 +1407,6 @@ def show_drafts(call, draft_tasks, sprint):
         pass
 
 def start_new_task(call, sprint):
-    """Начинает создание новой задачи"""
     user_id = call.from_user.id
     total_tasks = storage.get_user_task_count(user_id, sprint["id"])
     
@@ -1447,7 +1591,6 @@ def show_sprint_results(call):
         pass
 
 def update_task_description(message, task_id):
-    """Обновляет описание черновика"""
     new_description = message.text.strip()
     
     if len(new_description) < 3:
@@ -1470,7 +1613,6 @@ def update_task_description(message, task_id):
         bot.send_message(message.chat.id, "❌ Задача не найдена", reply_markup=back_button())
 
 def complexity_keyboard_for_edit(task_id):
-    """Клавиатура для выбора сложности при редактировании"""
     keyboard = telebot.types.InlineKeyboardMarkup(row_width=2)
     keyboard.add(
         telebot.types.InlineKeyboardButton("🟢 Лёгкая (1 балл)", callback_data=f"set_complexity_{task_id}_легкая"),
@@ -1498,18 +1640,16 @@ if __name__ == "__main__":
 
     threading.Thread(target=run_flask, daemon=True).start()
 
-    # Активируем черновики, если спринт уже идёт
     if is_sprint_active():
         activate_drafts()
 
-    # Запускаем планировщик уведомлений
     send_sprint_reminder()
 
     print("🚀 БОТ ЗАПУЩЕН!")
     print(f"📅 Старт спринта: {SPRINT_START.strftime('%d.%m.%Y %H:%M')}")
     print(f"⏳ До старта: {get_time_until_start()}")
     print(f"📌 На спринт: {TASKS_PER_SPHERE} задачи на каждую из {len(SPHERES)} сфер = {MAX_TASKS_PER_USER} задач")
-    print("✅ Версия: финальная с черновиками и уведомлениями")
+    print("✅ Версия: финальная с функциями сдвига спринта")
     print("📍 Жду сообщения...")
 
     bot.infinity_polling()
