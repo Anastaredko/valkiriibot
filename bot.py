@@ -27,7 +27,7 @@ SPHERES = [
 
 TASKS_PER_SPHERE = 2
 MAX_TASKS_PER_USER = len(SPHERES) * TASKS_PER_SPHERE
-DEFAULT_SPRINT_START = datetime(2026, 8, 17, 10, 0, 0)  # начальная дата, если нет спринта
+DEFAULT_SPRINT_START = datetime(2026, 8, 17, 10, 0, 0)
 
 # ==================== МОДЕЛИ ====================
 class Complexity:
@@ -273,7 +273,6 @@ class Storage:
 # ==================== БОТ ====================
 storage = Storage()
 
-# Проверяем, есть ли спринт. Если нет — создаём с дефолтной датой
 if not storage.get_current_sprint():
     storage.create_sprint(DEFAULT_SPRINT_START)
 
@@ -298,17 +297,13 @@ def format_task_card(task):
     return f"{status_emoji} <b>{task['description']}</b>\n   {complexity_emoji} Сфера: {task['sphere']}\n   📊 Сложность: {task['complexity'].capitalize()} ({max_points} баллов)\n   📈 Прогресс: {progress}% (Статус: {task['status']})\n   💯 Баллы: {points:.1f} / {max_points}"
 
 def get_time_until_start():
-    """Возвращает строку с оставшимся временем до старта спринта"""
     waiting_sprint = storage.get_waiting_sprint()
     if not waiting_sprint:
         return "✅ Спринт уже начался!"
-    
     start_date = datetime.fromisoformat(waiting_sprint["start_date"])
     now = datetime.now()
-    
     if now >= start_date:
         return "✅ Спринт уже начался!"
-    
     diff = start_date - now
     days = diff.days
     hours = diff.seconds // 3600
@@ -326,7 +321,6 @@ def get_time_until_start():
     return "⏳ " + " ".join(parts) if parts else "✅ Спринт начался!"
 
 def is_sprint_active():
-    """Проверяет, активен ли спринт (статус ACTIVE)"""
     return storage.get_active_sprint() is not None
 
 def get_sphere_progress(user_id, sprint_id, sphere_name):
@@ -366,11 +360,9 @@ def get_user_sphere_summary(user_id, sprint_id):
 
 # ==================== АКТИВАЦИЯ ЧЕРНОВИКОВ ====================
 def activate_drafts():
-    """Активирует все черновики в активном спринте"""
     active_sprint = storage.get_active_sprint()
     if not active_sprint:
         return
-    
     all_tasks = storage.get_sprint_tasks(active_sprint["id"])
     updated = 0
     for task in all_tasks:
@@ -378,7 +370,6 @@ def activate_drafts():
             task["is_draft"] = False
             updated += 1
             storage._save()
-    
     if updated > 0:
         print(f"✅ Активировано {updated} черновиков")
         users = storage.get_all_users()
@@ -395,26 +386,20 @@ def activate_drafts():
 
 # ==================== ПЛАНИРОВЩИК УВЕДОМЛЕНИЙ ====================
 def send_sprint_reminder():
-    """Отправляет уведомление за 1 час до старта и активирует черновики"""
     waiting_sprint = storage.get_waiting_sprint()
     if not waiting_sprint:
         return
-    
     start_date = datetime.fromisoformat(waiting_sprint["start_date"])
     now = datetime.now()
     diff = start_date - now
     seconds_until_start = diff.total_seconds()
-    
     if seconds_until_start <= 0:
         activate_drafts()
         return
-    
     if seconds_until_start > 3600:
         wait_seconds = seconds_until_start - 3600
         threading.Timer(wait_seconds, send_sprint_reminder).start()
         return
-    
-    # Отправляем уведомление за 1 час
     users = storage.get_all_users()
     for user in users:
         try:
@@ -427,13 +412,10 @@ def send_sprint_reminder():
             )
         except Exception as e:
             print(f"⚠️ Не удалось отправить уведомление пользователю {user['id']}: {e}")
-    
-    # Запускаем таймер на момент старта, чтобы активировать черновики
     threading.Timer(seconds_until_start, activate_drafts).start()
 
-# ==================== УВЕДОМЛЕНИЕ О СДВИГЕ СПРИНТА ====================
+# ==================== УВЕДОМЛЕНИЕ О СДВИГЕ ====================
 def notify_users_about_shift(new_start):
-    """Отправляет уведомление всем участникам о сдвиге спринта"""
     users = storage.get_all_users()
     for u in users:
         try:
@@ -452,7 +434,6 @@ def notify_users_about_shift(new_start):
 # ==================== КЛАВИАТУРЫ ====================
 def main_menu():
     keyboard = telebot.types.InlineKeyboardMarkup(row_width=1)
-    
     if is_sprint_active():
         keyboard.add(
             telebot.types.InlineKeyboardButton("🔄 Колесо баланса", callback_data="wheel"),
@@ -474,7 +455,6 @@ def main_menu():
             telebot.types.InlineKeyboardButton("📂 Мои черновики", callback_data="show_drafts_menu"),
             telebot.types.InlineKeyboardButton("👥 Участники спринта", callback_data="team_tasks")
         )
-    
     keyboard.add(telebot.types.InlineKeyboardButton("ℹ️ Помощь", callback_data="help"))
     return keyboard
 
@@ -532,19 +512,12 @@ def voting_keyboard(candidates, sprint_id):
 def start_message(message):
     user = message.from_user
     username = user.username
-    
     if username not in [u.replace('@', '') for u in ALLOWED_USERS]:
-        bot.send_message(
-            message.chat.id,
-            "🚫 Доступ запрещён. Этот бот только для участников спринта."
-        )
+        bot.send_message(message.chat.id, "🚫 Доступ запрещён. Этот бот только для участников спринта.")
         return
-    
     storage.create_user(user.id, user.username, user.full_name)
-    
     waiting_sprint = storage.get_waiting_sprint()
     active_sprint = storage.get_active_sprint()
-    
     if waiting_sprint and not active_sprint:
         timer_text = get_time_until_start()
         start_date = datetime.fromisoformat(waiting_sprint["start_date"])
@@ -579,7 +552,6 @@ def start_message(message):
         )
     else:
         text = "❌ Нет активного спринта. Обратитесь к администратору."
-    
     try:
         bot.send_photo(
             message.chat.id,
@@ -590,12 +562,7 @@ def start_message(message):
         )
     except Exception as e:
         print(f"⚠️ Не удалось отправить картинку: {e}")
-        bot.send_message(
-            message.chat.id,
-            text,
-            reply_markup=main_menu(),
-            parse_mode="HTML"
-        )
+        bot.send_message(message.chat.id, text, reply_markup=main_menu(), parse_mode="HTML")
 
 @bot.message_handler(commands=['force_start'])
 def force_start(message):
@@ -603,25 +570,16 @@ def force_start(message):
     if user.username != "missanare":
         bot.send_message(message.chat.id, "🚫 У тебя нет прав для этой команды.")
         return
-    
     waiting_sprint = storage.get_waiting_sprint()
     if not waiting_sprint:
         bot.send_message(message.chat.id, "❌ Нет ожидающего спринта.")
         return
-    
-    # Обновляем дату старта на текущую
     now = datetime.now()
     waiting_sprint["start_date"] = now.isoformat()
     waiting_sprint["end_date"] = (now + timedelta(days=14)).isoformat()
     storage._save()
-    
-    # Меняем статус на ACTIVE
     storage.update_sprint_status(waiting_sprint["id"], SprintStatus.ACTIVE)
-    
-    # Активируем черновики
     activate_drafts()
-    
-    # Уведомляем всех участников
     users = storage.get_all_users()
     for u in users:
         try:
@@ -634,8 +592,41 @@ def force_start(message):
             )
         except Exception as e:
             print(f"⚠️ Не удалось отправить уведомление {u['id']}: {e}")
-    
     bot.send_message(message.chat.id, "✅ Спринт принудительно запущен!")
+
+@bot.message_handler(commands=['force_waiting'])
+def force_waiting(message):
+    user = message.from_user
+    if user.username != "missanare":
+        bot.send_message(message.chat.id, "🚫 У тебя нет прав для этой команды.")
+        return
+    active_sprint = storage.get_active_sprint()
+    if not active_sprint:
+        bot.send_message(message.chat.id, "ℹ️ Нет активных спринтов.")
+        return
+    for s in storage.data["sprints"]:
+        if s["status"] == SprintStatus.ACTIVE:
+            s["status"] = SprintStatus.WAITING
+            s["voting_end_date"] = None
+            s["winner_id"] = None
+    storage._save()
+    bot.send_message(
+        message.chat.id,
+        "✅ Все активные спринты переведены в режим ожидания.\n"
+        "Теперь бот покажет меню до старта.",
+        reply_markup=main_menu()
+    )
+    users = storage.get_all_users()
+    for u in users:
+        try:
+            bot.send_message(
+                u["id"],
+                f"🔄 <b>Спринт переведён в режим ожидания администратором.</b>\n\n"
+                f"Скоро будет объявлен новый старт.",
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            print(f"⚠️ Не удалось отправить уведомление {u['id']}: {e}")
 
 @bot.message_handler(commands=['pause_sprint'])
 def pause_sprint(message):
@@ -643,22 +634,18 @@ def pause_sprint(message):
     if user.username != "missanare":
         bot.send_message(message.chat.id, "🚫 У тебя нет прав для этой команды.")
         return
-    
     sprint = storage.get_current_sprint()
     if not sprint:
         bot.send_message(message.chat.id, "❌ Нет активного спринта для приостановки.")
         return
-    
     if sprint["status"] == SprintStatus.WAITING:
         bot.send_message(message.chat.id, "ℹ️ Спринт уже находится в режиме ожидания.")
         return
-    
     old_status = sprint["status"]
     sprint["status"] = SprintStatus.WAITING
     sprint["voting_end_date"] = None
     sprint["winner_id"] = None
     storage._save()
-    
     bot.send_message(
         message.chat.id,
         f"⏸️ Спринт #{sprint['number']} приостановлен.\n"
@@ -667,7 +654,6 @@ def pause_sprint(message):
         f"Чтобы возобновить, используй /force_start.",
         reply_markup=main_menu()
     )
-    
     users = storage.get_all_users()
     for u in users:
         try:
@@ -688,12 +674,10 @@ def shift_sprint_menu(message):
     if user.username != "missanare":
         bot.send_message(message.chat.id, "🚫 У тебя нет прав для этой команды.")
         return
-    
     sprint = storage.get_current_sprint()
     if not sprint:
         bot.send_message(message.chat.id, "❌ Нет активного спринта для сдвига.")
         return
-    
     keyboard = InlineKeyboardMarkup(row_width=1)
     keyboard.add(
         InlineKeyboardButton("⏩ Сдвинуть на 14 дней", callback_data="shift_auto"),
@@ -715,11 +699,9 @@ def callback_handler(call):
     if user.username not in [u.replace('@', '') for u in ALLOWED_USERS]:
         bot.answer_callback_query(call.id, "🚫 Доступ запрещён.", show_alert=True)
         return
-    
     data = call.data
     user_id = call.from_user.id
 
-    # ===== НАВИГАЦИЯ =====
     if data == "back_to_main":
         bot.send_message(call.message.chat.id, "🎯 Главная\nВыбери, что хочешь сделать:", reply_markup=main_menu())
         try:
@@ -780,7 +762,6 @@ def callback_handler(call):
             show_drafts(call, draft_tasks, sprint)
         return
 
-    # ===== РЕДАКТИРОВАНИЕ ЧЕРНОВИКОВ =====
     if data.startswith("edit_draft_"):
         task_id = int(data.replace("edit_draft_", ""))
         task = storage.get_task(task_id)
@@ -815,11 +796,7 @@ def callback_handler(call):
                 f"<b>Текущее описание:</b> {task['description']}",
                 parse_mode="HTML"
             )
-            bot.register_next_step_handler(
-                call.message,
-                update_task_description,
-                task_id
-            )
+            bot.register_next_step_handler(call.message, update_task_description, task_id)
         return
 
     if data.startswith("edit_complexity_"):
@@ -839,7 +816,6 @@ def callback_handler(call):
         parts = data.split("_")
         task_id = int(parts[2])
         complexity = "_".join(parts[3:])
-        
         task = storage.get_task(task_id)
         if task:
             task["complexity"] = complexity
@@ -869,32 +845,29 @@ def callback_handler(call):
         if not sprint:
             bot.send_message(call.message.chat.id, "❌ Спринт не найден.", reply_markup=main_menu())
             return
-        
         new_start = datetime.now() + timedelta(days=14)
         new_start = new_start.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
         new_end = new_start + timedelta(days=14)
-        
         sprint["start_date"] = new_start.isoformat()
         sprint["end_date"] = new_end.isoformat()
-        # Принудительно переводим в WAITING, если спринт не завершён
-        if sprint["status"] != SprintStatus.FINISHED:
-            sprint["status"] = SprintStatus.WAITING
-            sprint["voting_end_date"] = None
-            sprint["winner_id"] = None
+        # Принудительно переводим все активные спринты в WAITING
+        for s in storage.data["sprints"]:
+            if s["status"] == SprintStatus.ACTIVE:
+                s["status"] = SprintStatus.WAITING
+                s["voting_end_date"] = None
+                s["winner_id"] = None
         storage._save()
-        
         bot.send_message(
             call.message.chat.id,
             f"✅ Время спринта сдвинуто на 14 дней!\n"
             f"Новый старт: {new_start.strftime('%d.%m.%Y в %H:%M')}\n"
-            f"Спринт переведён в режим ожидания.",
+            f"Все активные спринты переведены в режим ожидания.",
             reply_markup=main_menu()
         )
         try:
             bot.delete_message(call.message.chat.id, call.message.message_id)
         except Exception:
             pass
-        
         notify_users_about_shift(new_start)
         return
 
@@ -961,7 +934,6 @@ def callback_handler(call):
     if data.startswith("sphere_"):
         sphere = data.replace("sphere_", "")
         bot.answer_callback_query(call.id)
-        
         sprint = storage.get_waiting_sprint() or storage.get_active_sprint()
         if sprint:
             task_count = storage.get_user_task_count_by_sphere(user_id, sprint["id"], sphere)
@@ -977,7 +949,6 @@ def callback_handler(call):
                 except Exception:
                     pass
                 return
-        
         bot.send_message(
             call.message.chat.id,
             f"🌍 Куда направим фокус?\n\n"
@@ -988,13 +959,7 @@ def callback_handler(call):
             f"Чёткая цель = ясный результат. 🎯",
             parse_mode="HTML"
         )
-        
-        bot.register_next_step_handler(
-            call.message,
-            process_description_step,
-            sphere
-        )
-        
+        bot.register_next_step_handler(call.message, process_description_step, sphere)
         try:
             bot.delete_message(call.message.chat.id, call.message.message_id)
         except Exception:
@@ -1004,13 +969,11 @@ def callback_handler(call):
     if data.startswith("complexity_"):
         complexity = data.replace("complexity_", "")
         bot.answer_callback_query(call.id)
-        
         if user_id in bot.temp_data and 'sphere' in bot.temp_data[user_id]:
             sphere = bot.temp_data[user_id]['sphere']
             description = bot.temp_data[user_id]['description']
             is_draft = bot.temp_data[user_id]['is_draft']
             sprint_id = bot.temp_data[user_id]['sprint_id']
-            
             task_count_in_sphere = storage.get_user_task_count_by_sphere(user_id, sprint_id, sphere)
             if task_count_in_sphere >= TASKS_PER_SPHERE:
                 bot.send_message(
@@ -1021,10 +984,8 @@ def callback_handler(call):
                 )
                 del bot.temp_data[user_id]
                 return
-            
             task = storage.create_task(user_id, sprint_id, sphere, description, complexity, is_draft)
             del bot.temp_data[user_id]
-            
             if is_draft:
                 bot.send_message(
                     call.message.chat.id,
@@ -1159,7 +1120,6 @@ def process_manual_date(message):
     if user.username != "missanare":
         bot.send_message(message.chat.id, "🚫 У тебя нет прав.", reply_markup=main_menu())
         return
-    
     try:
         new_start = datetime.strptime(message.text.strip(), "%d.%m.%Y %H:%M")
     except ValueError:
@@ -1171,7 +1131,6 @@ def process_manual_date(message):
         )
         bot.register_next_step_handler(message, process_manual_date)
         return
-    
     if new_start <= datetime.now() + timedelta(hours=1):
         bot.send_message(
             message.chat.id,
@@ -1179,24 +1138,20 @@ def process_manual_date(message):
             reply_markup=main_menu()
         )
         return
-    
     sprint = storage.get_current_sprint()
     if not sprint:
         bot.send_message(message.chat.id, "❌ Спринт не найден.", reply_markup=main_menu())
         return
-    
     print(f"🔄 Админ {user.username} сдвинул спринт на {new_start}")
-    
     new_end = new_start + timedelta(days=14)
     sprint["start_date"] = new_start.isoformat()
     sprint["end_date"] = new_end.isoformat()
-    # Принудительно переводим в WAITING, если спринт не завершён
-    if sprint["status"] != SprintStatus.FINISHED:
-        sprint["status"] = SprintStatus.WAITING
-        sprint["voting_end_date"] = None
-        sprint["winner_id"] = None
+    for s in storage.data["sprints"]:
+        if s["status"] == SprintStatus.ACTIVE:
+            s["status"] = SprintStatus.WAITING
+            s["voting_end_date"] = None
+            s["winner_id"] = None
     storage._save()
-    
     bot.send_message(
         message.chat.id,
         f"✅ Время спринта обновлено!\n"
@@ -1204,32 +1159,26 @@ def process_manual_date(message):
         f"Спринт переведён в режим ожидания.",
         reply_markup=main_menu()
     )
-    
     notify_users_about_shift(new_start)
 
 def process_description_step(message, sphere):
     user_id = message.from_user.id
     description = message.text.strip()
-    
     if len(description) < 3:
         bot.send_message(message.chat.id, "❌ Описание должно содержать минимум 3 символа. Попробуй снова:")
         bot.register_next_step_handler(message, process_description_step, sphere)
         return
-    
     waiting_sprint = storage.get_waiting_sprint()
     active_sprint = storage.get_active_sprint()
-    
     if waiting_sprint and not is_sprint_active():
         sprint = waiting_sprint
         is_draft = True
     else:
         sprint = active_sprint
         is_draft = False
-    
     if not sprint:
         bot.send_message(message.chat.id, "❌ Нет активного спринта!", reply_markup=main_menu())
         return
-    
     task_count_in_sphere = storage.get_user_task_count_by_sphere(user_id, sprint["id"], sphere)
     if task_count_in_sphere >= TASKS_PER_SPHERE:
         bot.send_message(
@@ -1239,14 +1188,12 @@ def process_description_step(message, sphere):
             reply_markup=main_menu()
         )
         return
-    
     bot.temp_data[user_id] = {
         'sphere': sphere,
         'description': description,
         'is_draft': is_draft,
         'sprint_id': sprint['id']
     }
-    
     bot.send_message(
         message.chat.id,
         f"✍️ Отлично! Ты описала задачу:\n\n"
@@ -1263,15 +1210,12 @@ def show_wheel(call):
     if not active_sprint:
         bot.send_message(call.message.chat.id, "❌ Нет активного спринта", reply_markup=main_menu())
         return
-    
     progress = get_user_sphere_progress(user_id, active_sprint["id"])
     summary = get_user_sphere_summary(user_id, active_sprint["id"])
     wheel = get_wheel_visual(progress)
-    
     total_tasks = storage.get_user_task_count(user_id, active_sprint["id"])
     completed = len([t for t in storage.get_user_tasks(user_id, active_sprint["id"]) if t["status"] == TaskStatus.COMPLETED])
     avg_progress = sum(progress.values()) / len(progress) if progress else 0
-    
     message = (
         f"🌀 Твоё Колесо баланса\n\n"
         f"Спринт #{active_sprint['number']}\n"
@@ -1282,7 +1226,6 @@ def show_wheel(call):
         f"{summary}\n\n"
         f"Двигайся вперёд — каждый процент имеет значение! 🌱"
     )
-    
     bot.send_message(call.message.chat.id, message, reply_markup=back_button(), parse_mode="HTML")
     try:
         bot.delete_message(call.message.chat.id, call.message.message_id)
@@ -1295,7 +1238,6 @@ def show_my_tasks(call):
     if not active_sprint:
         bot.send_message(call.message.chat.id, "❌ Нет активного спринта", reply_markup=main_menu())
         return
-    
     tasks = storage.get_user_tasks(user_id, active_sprint["id"])
     if not tasks:
         bot.send_message(
@@ -1306,36 +1248,29 @@ def show_my_tasks(call):
             reply_markup=main_menu()
         )
         return
-    
     tasks_by_sphere = {}
     for sphere in SPHERES:
         tasks_by_sphere[sphere["name"]] = []
     for task in tasks:
         if task["sphere"] in tasks_by_sphere:
             tasks_by_sphere[task["sphere"]].append(task)
-    
     message = f"📋 Твои задачи\n\n📅 Спринт #{active_sprint['number']}\n⏳ Осталось дней: {(datetime.fromisoformat(active_sprint['end_date']) - datetime.now()).days}\n\n"
-    
     total_points = 0
     for sphere in SPHERES:
         sphere_tasks = tasks_by_sphere.get(sphere["name"], [])
         completed = len([t for t in sphere_tasks if t["status"] == TaskStatus.COMPLETED])
         message += f"{sphere['emoji']} <b>{sphere['name']}</b> ({completed}/{len(sphere_tasks)})\n"
-        
         for task in sphere_tasks:
             message += f"   {format_task_card(task)}\n"
             progress = TaskStatus.PROGRESS.get(task["status"], 0)
             max_points = Complexity.POINTS.get(task["complexity"], 1)
             total_points += max_points * (progress / 100)
         message += "\n"
-    
     message += f"💪 Итого баллов: {total_points:.1f}\n\nТы уже в движении. Остальное — вопрос времени и фокуса. 🔥"
-    
     keyboard = telebot.types.InlineKeyboardMarkup(row_width=1)
     for t in tasks[:5]:
         keyboard.add(telebot.types.InlineKeyboardButton(f"✏️ #{t['id']} {t['description'][:20]}...", callback_data=f"task_{t['id']}"))
     keyboard.add(telebot.types.InlineKeyboardButton("🔙 Назад", callback_data="back_to_main"))
-    
     bot.send_message(call.message.chat.id, message, reply_markup=keyboard, parse_mode="HTML")
     try:
         bot.delete_message(call.message.chat.id, call.message.message_id)
@@ -1351,10 +1286,8 @@ def show_team_members(call):
         except Exception:
             pass
         return
-    
     message = "👥 <b>Участники спринта</b>\n\n"
     active_sprint = storage.get_active_sprint()
-    
     for user in users:
         message += f"• {user['full_name']}"
         if active_sprint:
@@ -1366,14 +1299,12 @@ def show_team_members(call):
                 progress = sum(TaskStatus.PROGRESS.get(t["status"], 0) for t in tasks) / len(tasks)
             message += f" — {completed}/{total} задач, {progress:.0f}%"
         message += "\n"
-    
     if not is_sprint_active():
         waiting_sprint = storage.get_waiting_sprint()
         if waiting_sprint:
             message += f"\n⏳ До старта: {get_time_until_start()}"
     else:
         message += "\n\nВместе мы сильнее. Поддерживай, вдохновляй, двигайся в ритме команды! 🤝"
-    
     bot.send_message(call.message.chat.id, message, reply_markup=back_button(), parse_mode="HTML")
     try:
         bot.delete_message(call.message.chat.id, call.message.message_id)
@@ -1385,14 +1316,11 @@ def show_sprint_status(call):
     if not active_sprint:
         bot.send_message(call.message.chat.id, "❌ Нет активного спринта", reply_markup=main_menu())
         return
-    
     all_tasks = storage.get_sprint_tasks(active_sprint["id"])
     users = storage.get_all_users()
-    
     message = f"📊 Пульс спринта #{active_sprint['number']}\n\n"
     message += f"📅 {datetime.fromisoformat(active_sprint['start_date']).strftime('%d.%m.%Y')} — {datetime.fromisoformat(active_sprint['end_date']).strftime('%d.%m.%Y')}\n"
     message += f"⏳ Осталось: {(datetime.fromisoformat(active_sprint['end_date']) - datetime.now()).days} дней\n\n"
-    
     message += "👥 Участники и прогресс:\n"
     for user in users:
         user_tasks = [t for t in all_tasks if t["user_id"] == user["id"]]
@@ -1404,7 +1332,6 @@ def show_sprint_status(call):
                 max_p = Complexity.POINTS.get(t["complexity"], 1)
                 points += max_p * (progress / 100)
             message += f"• {user['full_name']}: {completed}/{len(user_tasks)} задач, {points:.1f} баллов\n"
-    
     message += f"\n📈 Общая картина:\n"
     message += f"• Всего задач: {len(all_tasks)}\n"
     if all_tasks:
@@ -1412,9 +1339,7 @@ def show_sprint_status(call):
         progress = sum(TaskStatus.PROGRESS.get(t["status"], 0) for t in all_tasks) / len(all_tasks)
         message += f"• Выполнено: {completed}\n"
         message += f"• Средний прогресс: {progress:.0f}%\n"
-    
     message += "\nКаждый день приближает нас к общей цели! 🌟"
-    
     bot.send_message(call.message.chat.id, message, reply_markup=back_button(), parse_mode="HTML")
     try:
         bot.delete_message(call.message.chat.id, call.message.message_id)
@@ -1424,32 +1349,24 @@ def show_sprint_status(call):
 def start_create_task(call):
     waiting_sprint = storage.get_waiting_sprint()
     active_sprint = storage.get_active_sprint()
-    
     sprint = waiting_sprint if waiting_sprint and not is_sprint_active() else active_sprint
-    
     if not sprint:
         bot.send_message(call.message.chat.id, "❌ Нет активного спринта", reply_markup=main_menu())
         return
-    
     user_id = call.from_user.id
     draft_tasks = [t for t in storage.get_user_tasks(user_id, sprint["id"]) if t.get("is_draft", False)]
-    
     if draft_tasks:
         show_drafts(call, draft_tasks, sprint)
         return
-    
     start_new_task(call, sprint)
 
 def show_drafts(call, draft_tasks, sprint):
     message = "📝 <b>Твои черновики</b>\n\n"
     message += f"Спринт #{sprint['number']} (до старта)\n"
     message += f"📌 Всего задач: {len(draft_tasks)} из {MAX_TASKS_PER_USER}\n\n"
-    
     for i, task in enumerate(draft_tasks, 1):
         message += f"{i}. {format_task_card(task)}\n\n"
-    
     message += "Что хочешь сделать?"
-    
     keyboard = telebot.types.InlineKeyboardMarkup(row_width=2)
     for task in draft_tasks:
         keyboard.add(
@@ -1462,13 +1379,7 @@ def show_drafts(call, draft_tasks, sprint):
         telebot.types.InlineKeyboardButton("➕ Добавить задачу", callback_data="add_new_task"),
         telebot.types.InlineKeyboardButton("🔙 Назад", callback_data="back_to_main")
     )
-    
-    bot.send_message(
-        call.message.chat.id,
-        message,
-        reply_markup=keyboard,
-        parse_mode="HTML"
-    )
+    bot.send_message(call.message.chat.id, message, reply_markup=keyboard, parse_mode="HTML")
     try:
         bot.delete_message(call.message.chat.id, call.message.message_id)
     except Exception:
@@ -1477,7 +1388,6 @@ def show_drafts(call, draft_tasks, sprint):
 def start_new_task(call, sprint):
     user_id = call.from_user.id
     total_tasks = storage.get_user_task_count(user_id, sprint["id"])
-    
     if total_tasks >= MAX_TASKS_PER_USER:
         bot.send_message(
             call.message.chat.id,
@@ -1486,7 +1396,6 @@ def start_new_task(call, sprint):
             reply_markup=main_menu()
         )
         return
-    
     intro_text = (
         "🌟 <b>Колесо баланса</b>\n\n"
         "Представь, что твоя жизнь — это колесо. Чтобы оно катилось ровно и быстро, "
@@ -1502,7 +1411,6 @@ def start_new_task(call, sprint):
         "По <b>2 задачи</b> на каждую сферу — и твоё колесо станет ещё круглее! 🌀\n\n"
         "Готов? Выбери, с чего начнём! 🚀"
     )
-    
     try:
         bot.send_photo(
             call.message.chat.id,
@@ -1517,12 +1425,7 @@ def start_new_task(call, sprint):
             pass
     except Exception as e:
         print(f"⚠️ Не удалось отправить картинку колеса: {e}")
-        bot.send_message(
-            call.message.chat.id,
-            intro_text,
-            reply_markup=spheres_keyboard(),
-            parse_mode="HTML"
-        )
+        bot.send_message(call.message.chat.id, intro_text, reply_markup=spheres_keyboard(), parse_mode="HTML")
         try:
             bot.delete_message(call.message.chat.id, call.message.message_id)
         except Exception:
@@ -1545,25 +1448,21 @@ def start_voting(call):
             return
         bot.send_message(call.message.chat.id, "❌ Голосование недоступно", reply_markup=back_button())
         return
-    
     if voting_sprint.get("voting_end_date"):
         voting_end = datetime.fromisoformat(voting_sprint["voting_end_date"])
         if datetime.now() > voting_end:
             bot.send_message(call.message.chat.id, "⏰ Время голосования истекло.\nРезультаты в разделе 'Итоги спринта'.", reply_markup=back_button())
             return
-    
     existing_vote = storage.get_user_vote(voting_sprint["id"], user_id)
     if existing_vote:
         candidate = storage.get_user(existing_vote["candidate_id"])
         bot.send_message(call.message.chat.id, f"✅ Ты уже проголосовал(а)!\n\nТвой голос за: <b>{candidate['full_name']}</b>", reply_markup=back_button(), parse_mode="HTML")
         return
-    
     users = storage.get_all_users()
     candidates = [{"user_id": u["id"], "full_name": u["full_name"]} for u in users if u["id"] != user_id]
     if not candidates:
         bot.send_message(call.message.chat.id, "❌ Нет других участников", reply_markup=back_button())
         return
-    
     message = f"⭐ <b>Звезда спринта</b>\n\n"
     message += f"Спринт #{voting_sprint['number']}\n"
     message += f"⏳ Голосование до {datetime.fromisoformat(voting_sprint['voting_end_date']).strftime('%H:%M %d.%m.%Y')}\n\n"
@@ -1573,7 +1472,6 @@ def start_voting(call):
     message += f"• Нельзя голосовать за себя\n"
     message += f"• Только 1 голос\n\n"
     message += f"Твой выбор — признание чужих усилий. 🤝"
-    
     bot.send_message(call.message.chat.id, message, reply_markup=voting_keyboard(candidates, voting_sprint["id"]), parse_mode="HTML")
     try:
         bot.delete_message(call.message.chat.id, call.message.message_id)
@@ -1583,7 +1481,6 @@ def start_voting(call):
 def show_sprint_results(call):
     finished_sprint = storage.get_last_finished_sprint()
     voting_sprint = storage.get_voting_sprint()
-    
     if not finished_sprint and not voting_sprint:
         active_sprint = storage.get_active_sprint()
         if active_sprint:
@@ -1592,24 +1489,20 @@ def show_sprint_results(call):
             return
         bot.send_message(call.message.chat.id, "❌ Нет завершенных спринтов", reply_markup=main_menu())
         return
-    
     if voting_sprint:
         voting_end = datetime.fromisoformat(voting_sprint["voting_end_date"])
         if datetime.now() < voting_end:
             hours_left = int((voting_end - datetime.now()).total_seconds() / 3600)
             bot.send_message(call.message.chat.id, f"⏳ Итоги после голосования.\nОсталось {hours_left} часов.", reply_markup=back_button())
             return
-    
     sprint_to_show = finished_sprint or voting_sprint
     results = storage.get_sprint_results(sprint_to_show["id"])
     if not results:
         bot.send_message(call.message.chat.id, "❌ Нет данных", reply_markup=back_button())
         return
-    
     message = f"🏆 <b>Итоги спринта #{sprint_to_show['number']}</b> 🏆\n\n"
     message += f"📅 {datetime.fromisoformat(sprint_to_show['start_date']).strftime('%d.%m.%Y')} — {datetime.fromisoformat(sprint_to_show['end_date']).strftime('%d.%m.%Y')}\n\n"
     message += "═══════════════════════════════════\n\n"
-    
     if results and results[0]["is_winner"]:
         winner = results[0]
         message += f"⭐ <b>Звезда спринта:</b> {winner['full_name']}\n"
@@ -1617,17 +1510,14 @@ def show_sprint_results(call):
         message += f"   🗳️ Голосов: {winner['vote_count']}\n"
         message += f"   💯 Итоговый счёт: {winner['total_points']:.1f}\n\n"
         message += "═══════════════════════════════════\n\n"
-    
     message += "📊 <b>Таблица результатов:</b>\n\n"
     for i, result in enumerate(results, 1):
         medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
         message += f"{medal} <b>{result['full_name']}</b>\n"
         message += f"   📋 Задач: {len(result['tasks'])} | Баллы: {result['task_points']:.1f}\n"
         message += f"   🗳️ Голосов: {result['vote_count']} | Итого: {result['total_points']:.1f}\n\n"
-    
     message += "═══════════════════════════════════\n"
     message += "📋 <b>Детали по задачам:</b>\n\n"
-    
     for result in results:
         if result['tasks']:
             message += f"<b>{result['full_name']}</b> (баллов: {result['task_points']:.1f}, голосов: {result['vote_count']}):\n"
@@ -1637,7 +1527,6 @@ def show_sprint_results(call):
             for task in result['tasks']:
                 if task["sphere"] in tasks_by_sphere:
                     tasks_by_sphere[task["sphere"]].append(task)
-            
             for sphere in SPHERES:
                 sphere_tasks = tasks_by_sphere.get(sphere["name"], [])
                 if sphere_tasks:
@@ -1648,10 +1537,8 @@ def show_sprint_results(call):
                         points = max_points * (progress / 100)
                         message += f"      • {get_status_emoji(task['status'])} {task['description']} — {points:.1f} баллов\n"
             message += "\n"
-    
     message += "Спринт пройден. Опыт получен. Баланс прокачан.\n"
     message += "До встречи в следующем рывке! 🚀"
-    
     bot.send_message(call.message.chat.id, message, reply_markup=back_button(), parse_mode="HTML")
     try:
         bot.delete_message(call.message.chat.id, call.message.message_id)
@@ -1660,12 +1547,10 @@ def show_sprint_results(call):
 
 def update_task_description(message, task_id):
     new_description = message.text.strip()
-    
     if len(new_description) < 3:
         bot.send_message(message.chat.id, "❌ Описание должно содержать минимум 3 символа. Попробуй снова:")
         bot.register_next_step_handler(message, update_task_description, task_id)
         return
-    
     task = storage.get_task(task_id)
     if task:
         task["description"] = new_description
@@ -1708,11 +1593,9 @@ if __name__ == "__main__":
 
     threading.Thread(target=run_flask, daemon=True).start()
 
-    # Активируем черновики, если спринт уже идёт
     if is_sprint_active():
         activate_drafts()
 
-    # Запускаем планировщик уведомлений
     send_sprint_reminder()
 
     print("🚀 БОТ ЗАПУЩЕН!")
@@ -1724,7 +1607,7 @@ if __name__ == "__main__":
     else:
         print("📅 Спринт не найден.")
     
-    print("✅ Версия: финальная с корректным статусом спринта")
+    print("✅ Версия: финальная с принудительным сбросом активных спринтов")
     print("📍 Жду сообщения...")
 
     bot.infinity_polling()
