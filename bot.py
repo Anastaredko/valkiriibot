@@ -27,7 +27,7 @@ SPHERES = [
 
 TASKS_PER_SPHERE = 2
 MAX_TASKS_PER_USER = len(SPHERES) * TASKS_PER_SPHERE
-SPRINT_START = datetime(2026, 8, 17, 10, 0, 0)
+DEFAULT_SPRINT_START = datetime(2026, 8, 17, 10, 0, 0)  # начальная дата, если нет спринта
 
 # ==================== МОДЕЛИ ====================
 class Complexity:
@@ -273,9 +273,9 @@ class Storage:
 # ==================== БОТ ====================
 storage = Storage()
 
-waiting_sprint = storage.get_waiting_sprint()
-if not waiting_sprint:
-    storage.create_sprint(SPRINT_START)
+# Проверяем, есть ли спринт. Если нет — создаём с дефолтной датой
+if not storage.get_current_sprint():
+    storage.create_sprint(DEFAULT_SPRINT_START)
 
 bot = telebot.TeleBot("8063432147:AAFnfoOakURx1wiPPvJHaar1dq2eSDrqs4E")
 bot.temp_data = {}
@@ -298,10 +298,18 @@ def format_task_card(task):
     return f"{status_emoji} <b>{task['description']}</b>\n   {complexity_emoji} Сфера: {task['sphere']}\n   📊 Сложность: {task['complexity'].capitalize()} ({max_points} баллов)\n   📈 Прогресс: {progress}% (Статус: {task['status']})\n   💯 Баллы: {points:.1f} / {max_points}"
 
 def get_time_until_start():
-    now = datetime.now()
-    if now >= SPRINT_START:
+    """Возвращает строку с оставшимся временем до старта спринта"""
+    waiting_sprint = storage.get_waiting_sprint()
+    if not waiting_sprint:
         return "✅ Спринт уже начался!"
-    diff = SPRINT_START - now
+    
+    start_date = datetime.fromisoformat(waiting_sprint["start_date"])
+    now = datetime.now()
+    
+    if now >= start_date:
+        return "✅ Спринт уже начался!"
+    
+    diff = start_date - now
     days = diff.days
     hours = diff.seconds // 3600
     minutes = (diff.seconds % 3600) // 60
@@ -318,7 +326,8 @@ def get_time_until_start():
     return "⏳ " + " ".join(parts) if parts else "✅ Спринт начался!"
 
 def is_sprint_active():
-    return datetime.now() >= SPRINT_START
+    """Проверяет, активен ли спринт (статус ACTIVE)"""
+    return storage.get_active_sprint() is not None
 
 def get_sphere_progress(user_id, sprint_id, sphere_name):
     tasks = storage.get_user_tasks_by_sphere(user_id, sprint_id, sphere_name)
@@ -387,8 +396,13 @@ def activate_drafts():
 # ==================== ПЛАНИРОВЩИК УВЕДОМЛЕНИЙ ====================
 def send_sprint_reminder():
     """Отправляет уведомление за 1 час до старта и активирует черновики"""
+    waiting_sprint = storage.get_waiting_sprint()
+    if not waiting_sprint:
+        return
+    
+    start_date = datetime.fromisoformat(waiting_sprint["start_date"])
     now = datetime.now()
-    diff = SPRINT_START - now
+    diff = start_date - now
     seconds_until_start = diff.total_seconds()
     
     if seconds_until_start <= 0:
@@ -516,9 +530,6 @@ def voting_keyboard(candidates, sprint_id):
 
 @bot.message_handler(commands=['start'])
 def start_message(message):
-    if is_sprint_active():
-        activate_drafts()
-    
     user = message.from_user
     username = user.username
     
@@ -531,12 +542,16 @@ def start_message(message):
     
     storage.create_user(user.id, user.username, user.full_name)
     
-    if not is_sprint_active():
+    waiting_sprint = storage.get_waiting_sprint()
+    active_sprint = storage.get_active_sprint()
+    
+    if waiting_sprint and not active_sprint:
         timer_text = get_time_until_start()
+        start_date = datetime.fromisoformat(waiting_sprint["start_date"])
         text = (
             f"🌟 Привет, {user.full_name}!\n\n"
             f"Мы на пороге нового рывка 🚀\n"
-            f"Спринт стартует: {SPRINT_START.strftime('%d.%m.%Y в %H:%M')}\n"
+            f"Спринт стартует: {start_date.strftime('%d.%m.%Y в %H:%M')}\n"
             f"Осталось: {timer_text}\n\n"
             f"✨ Правила игры:\n"
             f"• Поставь по {TASKS_PER_SPHERE} задачи на каждую из {len(SPHERES)} сфер жизни\n"
@@ -548,22 +563,22 @@ def start_message(message):
             f"👥 Ознакомиться с участниками\n\n"
             f"Готовься — скоро начинаем! 💪"
         )
+    elif active_sprint:
+        end_date = datetime.fromisoformat(active_sprint["end_date"])
+        days_left = max(0, (end_date - datetime.now()).days)
+        text = (
+            f"🔥 Ты в игре, {user.full_name}!\n\n"
+            f"Спринт #{active_sprint['number']} уже здесь 🚀\n"
+            f"До финиша: {days_left} дней\n\n"
+            f"Напомню, что внутри:\n"
+            f"• {len(SPHERES)} сфер, по {TASKS_PER_SPHERE} задачи на каждую = {MAX_TASKS_PER_USER} дел\n"
+            f"• Каждый день ты сможешь отслеживать свой прогресс\n"
+            f"• Каждый день — маленький, но важный шаг\n\n"
+            f"Делай, как чувствуешь.\n"
+            f"Ты справишься! 💫"
+        )
     else:
-        active_sprint = storage.get_active_sprint()
-        if active_sprint:
-            end_date = datetime.fromisoformat(active_sprint['end_date'])
-            days_left = max(0, (end_date - datetime.now()).days)
-            text = (
-                f"🔥 Ты в игре, {user.full_name}!\n\n"
-                f"Спринт #{active_sprint['number']} уже здесь 🚀\n"
-                f"До финиша: {days_left} дней\n\n"
-                f"Напомню, что внутри:\n"
-                f"• {len(SPHERES)} сфер, по {TASKS_PER_SPHERE} задачи на каждую = {MAX_TASKS_PER_USER} дел\n"
-                f"• Каждый день ты сможешь отслеживать свой прогресс\n"
-                f"• Каждый день — маленький, но важный шаг\n\n"
-                f"Делай, как чувствуешь.\n"
-                f"Ты справишься! 💫"
-            )
+        text = "❌ Нет активного спринта. Обратитесь к администратору."
     
     try:
         bot.send_photo(
@@ -594,14 +609,19 @@ def force_start(message):
         bot.send_message(message.chat.id, "❌ Нет ожидающего спринта.")
         return
     
+    # Обновляем дату старта на текущую
     now = datetime.now()
     waiting_sprint["start_date"] = now.isoformat()
     waiting_sprint["end_date"] = (now + timedelta(days=14)).isoformat()
     storage._save()
     
+    # Меняем статус на ACTIVE
     storage.update_sprint_status(waiting_sprint["id"], SprintStatus.ACTIVE)
+    
+    # Активируем черновики
     activate_drafts()
     
+    # Уведомляем всех участников
     users = storage.get_all_users()
     for u in users:
         try:
@@ -1688,16 +1708,23 @@ if __name__ == "__main__":
 
     threading.Thread(target=run_flask, daemon=True).start()
 
+    # Активируем черновики, если спринт уже идёт
     if is_sprint_active():
         activate_drafts()
 
+    # Запускаем планировщик уведомлений
     send_sprint_reminder()
 
     print("🚀 БОТ ЗАПУЩЕН!")
-    print(f"📅 Старт спринта: {SPRINT_START.strftime('%d.%m.%Y %H:%M')}")
-    print(f"⏳ До старта: {get_time_until_start()}")
-    print(f"📌 На спринт: {TASKS_PER_SPHERE} задачи на каждую из {len(SPHERES)} сфер = {MAX_TASKS_PER_USER} задач")
-    print("✅ Версия: финальная с корректным переводом в WAITING")
+    current_sprint = storage.get_current_sprint()
+    if current_sprint:
+        start_date = datetime.fromisoformat(current_sprint["start_date"])
+        print(f"📅 Старт спринта: {start_date.strftime('%d.%m.%Y %H:%M')}")
+        print(f"📌 На спринт: {TASKS_PER_SPHERE} задачи на каждую из {len(SPHERES)} сфер = {MAX_TASKS_PER_USER} задач")
+    else:
+        print("📅 Спринт не найден.")
+    
+    print("✅ Версия: финальная с корректным статусом спринта")
     print("📍 Жду сообщения...")
 
     bot.infinity_polling()
