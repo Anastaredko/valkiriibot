@@ -428,6 +428,7 @@ def notify_users_about_shift(new_start):
                 f"🔄 <b>Время старта спринта изменено администратором.</b>\n\n"
                 f"Новый старт: {new_start.strftime('%d.%m.%Y в %H:%M')}\n"
                 f"Задачи сохранены без изменений.\n"
+                f"Спринт переведён в режим ожидания.\n"
                 f"Готовься! 🚀",
                 parse_mode="HTML"
             )
@@ -615,6 +616,51 @@ def force_start(message):
             print(f"⚠️ Не удалось отправить уведомление {u['id']}: {e}")
     
     bot.send_message(message.chat.id, "✅ Спринт принудительно запущен!")
+
+@bot.message_handler(commands=['pause_sprint'])
+def pause_sprint(message):
+    user = message.from_user
+    if user.username != "missanare":
+        bot.send_message(message.chat.id, "🚫 У тебя нет прав для этой команды.")
+        return
+    
+    sprint = storage.get_current_sprint()
+    if not sprint:
+        bot.send_message(message.chat.id, "❌ Нет активного спринта для приостановки.")
+        return
+    
+    if sprint["status"] == SprintStatus.WAITING:
+        bot.send_message(message.chat.id, "ℹ️ Спринт уже находится в режиме ожидания.")
+        return
+    
+    old_status = sprint["status"]
+    sprint["status"] = SprintStatus.WAITING
+    sprint["voting_end_date"] = None
+    sprint["winner_id"] = None
+    storage._save()
+    
+    bot.send_message(
+        message.chat.id,
+        f"⏸️ Спринт #{sprint['number']} приостановлен.\n"
+        f"Статус изменён с {old_status} на «Ожидание».\n"
+        f"Все задачи и прогресс сохранены.\n"
+        f"Чтобы возобновить, используй /force_start.",
+        reply_markup=main_menu()
+    )
+    
+    users = storage.get_all_users()
+    for u in users:
+        try:
+            bot.send_message(
+                u["id"],
+                f"⏸️ <b>Спринт приостановлен администратором.</b>\n\n"
+                f"Текущий спринт временно остановлен.\n"
+                f"Все твои задачи сохранены.\n"
+                f"О возобновлении сообщим дополнительно.",
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            print(f"⚠️ Не удалось отправить уведомление {u['id']}: {e}")
 
 @bot.message_handler(commands=['shift_sprint'])
 def shift_sprint_menu(message):
@@ -810,7 +856,8 @@ def callback_handler(call):
         
         sprint["start_date"] = new_start.isoformat()
         sprint["end_date"] = new_end.isoformat()
-        if sprint["status"] in [SprintStatus.ACTIVE, SprintStatus.VOTING]:
+        # Принудительно переводим в WAITING, если спринт не завершён
+        if sprint["status"] != SprintStatus.FINISHED:
             sprint["status"] = SprintStatus.WAITING
             sprint["voting_end_date"] = None
             sprint["winner_id"] = None
@@ -820,7 +867,7 @@ def callback_handler(call):
             call.message.chat.id,
             f"✅ Время спринта сдвинуто на 14 дней!\n"
             f"Новый старт: {new_start.strftime('%d.%m.%Y в %H:%M')}\n"
-            f"Все задачи сохранены.",
+            f"Спринт переведён в режим ожидания.",
             reply_markup=main_menu()
         )
         try:
@@ -1123,7 +1170,8 @@ def process_manual_date(message):
     new_end = new_start + timedelta(days=14)
     sprint["start_date"] = new_start.isoformat()
     sprint["end_date"] = new_end.isoformat()
-    if sprint["status"] in [SprintStatus.ACTIVE, SprintStatus.VOTING]:
+    # Принудительно переводим в WAITING, если спринт не завершён
+    if sprint["status"] != SprintStatus.FINISHED:
         sprint["status"] = SprintStatus.WAITING
         sprint["voting_end_date"] = None
         sprint["winner_id"] = None
@@ -1133,7 +1181,7 @@ def process_manual_date(message):
         message.chat.id,
         f"✅ Время спринта обновлено!\n"
         f"Новый старт: {new_start.strftime('%d.%m.%Y в %H:%M')}\n"
-        f"Все задачи сохранены.",
+        f"Спринт переведён в режим ожидания.",
         reply_markup=main_menu()
     )
     
@@ -1649,7 +1697,7 @@ if __name__ == "__main__":
     print(f"📅 Старт спринта: {SPRINT_START.strftime('%d.%m.%Y %H:%M')}")
     print(f"⏳ До старта: {get_time_until_start()}")
     print(f"📌 На спринт: {TASKS_PER_SPHERE} задачи на каждую из {len(SPHERES)} сфер = {MAX_TASKS_PER_USER} задач")
-    print("✅ Версия: финальная с функциями сдвига спринта")
+    print("✅ Версия: финальная с корректным переводом в WAITING")
     print("📍 Жду сообщения...")
 
     bot.infinity_polling()
